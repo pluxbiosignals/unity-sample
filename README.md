@@ -237,5 +237,5 @@ The possible values are `"biosignalsplux"`, `"BITalino"` or `"MuscleBAN BE Plux"
 *Function without input parameters*
 
 ## Support
-If you find any problem during your experience, please, do not hesitate to contact our support team (support@plux.info).
+If you find any problem during your experience, please, feel free to create a new issue track on our repository.
 We will be very glad to guide you in this amazing journey and listen your suggestions!
