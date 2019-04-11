@@ -1,0 +1,824 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        "Lib_dotNet"
+    </assembly>
+    <members>
+        <member name="M:PluxDotNet.SignalsDev.SetDOut(System.Boolean)">
+            <summary>Sets the digital output state.</summary>
+            <param name="state">Output state to assign. If true, output is set to High, otherwise it is set to Low.</param>
+            <remarks>On BITalino devices, only the first output (O1) is assigned to the given state. The other outputs are set to Low. Call BITalinoDev.setDOut() to assign all digital outputs.</remarks>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.GetNumChannels">
+            <summary>Returns the total number of acquisition channels.</summary>
+            <returns>The returned value is the total number of channels across all the acquisition sources, or zero if the device is stopped.
+This value is the number of elements of the data array passed to the OnRawFrame() callback.</returns>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.Stop">
+            <summary>Stops a real-time acquisition session.</summary>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.Start(System.Single,System.Collections.Generic.List`1{PluxDotNet.Source})">
+            <summary>Starts a real-time acquisition session.</summary>
+            <param name="baseFreq">Acquisition base sampling frequency in Hertz.</param>
+            <param name="sources">Signal sources to acquire.</param>
+            <remarks>This method is not supported on BITalino devices.</remarks>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.Start(System.Single,System.Collections.Generic.List`1{System.Int32},System.Int32)">
+            <summary>Starts a real-time acquisition session.</summary>
+            <remarks>This method is a shortcut to Start(baseFreq, sources).
+It can be called if all requested sources are to be sampled at the same frequency and resolution, and at their channel 1 only.</remarks>
+            <param name="freq">Acquisition sampling frequency in Hertz.</param>
+            <param name="ports">Ports to acquire.</param>
+            <param name="nBits">Sampling resolution in bits. It can be 8 or 16. This parameter is ignored for BITalino devices.</param>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.Start(System.Single,System.Int32,System.Int32)">
+            <summary>Starts a real-time acquisition session.</summary>
+            <remarks>This method is a shortcut to Start(baseFreq, sources).
+It can be called if all requested sources are to be sampled at the same frequency and resolution, and at their channel 1 only.</remarks>
+            <param name="freq">Acquisition sampling frequency in Hertz.</param>
+            <param name="portMask">Bitmask of the device ports to acquire.
+The least significant bit corresponds to port 1, the next bit to port 2, etc.</param>
+            <param name="nBits">Sampling resolution in bits. It can be 8 or 16. This parameter is ignored for BITalino devices.</param>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.#ctor(PluxDotNet.BaseDev)">
+            <summary>Promotes a BaseDev instance to SignalsDev.</summary>
+            <param name="baseDev"> Instance to be promoted. If promotion is successful, baseDev is no longer valid.</param>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.#ctor(System.String)">
+            <summary>Connects to a PLUX device.</summary>
+            <param name="path">Path to the PLUX device. It has the same meaning as in BaseDev.BaseDev().</param>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.Interrupt(System.Object)">
+            <summary>Sends an interrupt signal to Loop().</summary>
+            <param name="param">Parameter to be passed to OnInterrupt() callback.</param>
+            <remarks>This method can be called from a thread while Loop() is running on another thread.
+The OnInterrupt() callback will be called from Loop() (in the context of its thread).
+This method cannot be called from a callback, and it cannot be called if Loop() is not running in another thread.</remarks>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.Loop">
+            <summary>Runs the device message loop.</summary>
+            <remarks>The message loop receives and dispatches the messages from the device to the callbacks.
+This method returns when a callback returns True.
+This method cannot be called from a callback.</remarks>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.SetTimeout(System.Int32)">
+            <summary>Sets the receiving timeout value for Loop().</summary>
+            <param name="timeout"> Timeout value in milliseconds.
+If timeout is 0, an immediate timeout condition occurs in Loop() if there are no pending messages from device to dispatch.
+If timeout is -1, a timeout condition never occurs.</param>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.GetBattery">
+            <summary>Returns the remaining battery charge or charging status.</summary>
+            <returns>The returned value is the remaining battery charge as a percentage of full capacity or -1 if the device is charging.</returns>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.GetProperties">
+            <summary>Returns the device properties.</summary>
+            <returns>The device properties is a dictionary of String keywords to a variant object (String, int, float or bool). The currently defined keywords are:
+description - Device description string
+fwVersion - Device firmware version
+hwVersion - Device hardware version (not present in old devices)
+memorySize - Device internal memory size in kBytes (only on MemoryDev instances) (zero if internal memory is not available)
+path - Device path string as passed to constructor
+productID - Device product identifier
+uid - Device unique identifier string
+
+The fwVersion, hwVersion and productID properties are composed of two numbers (the major and minor numbers).
+These properties and are coded as 2-byte integers where the higher byte is the major number
+and the lower byte is the minor number.
+</returns>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.#ctor(System.String)">
+            <summary>Connects to a PLUX device.</summary>
+            <param name="path"> Path to the PLUX device. It can have one of the following formats:
+xx:xx:xx:xx:xx:xx or BTHxx:xx:xx:xx:xx:xx - Classic Bluetooth MAC address
+BLExx:xx:xx:xx:xx:xx - Bluetooth Low Energy MAC address
+COMn - COM serial/virtual port
+USB or USBn - USB adapter connection
+</param>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.FindDevices(System.String)">
+            <summary>Finds PLUX devices within the given domain.</summary>
+            <param name="domain"> Domain of search. It can be "BTH" for a Classic Bluetooth search,
+"BLE" for a Bluetooth Low Energy search, or "USB" for an USB search.
+If it is an empty string, a search is attempted in all domains.</param>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.FindDevices">
+            <summary>Finds PLUX devices in all search domains (BTH, BLE and USB).</summary>
+        </member>
+        <member name="M:PluxDotNet.SignalsDev.OnRawFrame(System.Int32,System.Int32[])">
+            <summary>Raw frames callback.</summary>
+            <remarks>This callback is called by message loop when a real-time data acquisition frame is received from the device.
+In order to receive data frames, an application must derive SignalsDev class (or any of its derived classes)
+to a new class and override this method in the new class.</remarks>
+            <param name="nSeq">Sequence number of the frame.
+This number is zero for the first frame of the acquisition session, and then incremented by one for every subsequent frame.
+If this number differs more than one between consecutive frames, it means that data frames for the missing sequence numbers were lost, possibly due to connection problems.</param>
+            <param name="data">Frame sampling data.
+Each value is acquired from a channel of each requested source, in the same source order as given in Start(baseFreq, sources), or in the same port order as given in Start(freq, ports, nBits), or from lower ports to higher ports as given in Start(freq, portMask, nBits). For each multi-channel source, the values are presented from lower channels to higher channels.
+The values range for 16-bit samples is 0...65535 and for 8-bit samples is 0...255 .
+The values for a source with a frequency divisor greater than one are updated only in the frames with a sequence number multiple of the frequency divisor value.
+The number of elements of this array can be obtained by calling GetNumChannels().</param>
+            <returns>Return true to exit message loop or false otherwise. Default callback returns false.</returns>
+        </member>
+        <member name="T:PluxDotNet.SignalsDev">
+            <summary>Base class for PLUX signal-acquiring devices.</summary>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.Dispose">
+            <summary>Disconnects from the device.</summary>
+            <remarks>If the device is in real-time acquisition (through SignalsDev.Start()), it is automatically stopped.</remarks>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.OnInterrupt(System.Object)">
+            <summary>Interrupt signal callback.</summary>
+            <remarks>This callback is called by message loop after Interrupt() is called from another thread.
+In order to receive interrupt signals, an application must derive BaseDev class (or any of its derived classes)
+to a new class and override this method in the new class.</remarks>
+            <param name="param">Parameter passed to Interrupt().</param>
+            <returns>Return true to exit message loop or false otherwise. Default callback returns false.</returns>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.OnTimeout">
+            <summary>Timeout callback.</summary>
+            <remarks>This callback is called by message loop when a timeout condition occurred.
+In order to receive timeout conditions, an application must derive BaseDev class (or any of its derived classes)
+to a new class and override this method in the new class.</remarks>
+            <returns>Return true to exit message loop or false otherwise. Default callback returns false.</returns>
+        </member>
+        <member name="M:PluxDotNet.BaseDev.OnEvent(PluxDotNet.Event.Event)">
+            <summary>Event callback.</summary>
+            <remarks>This callback is called by message loop when an event is received from the device.
+In order to receive device events, an application must derive BaseDev class (or any of its derived classes)
+to a new class and override this method in the new class.</remarks>
+            <param name="evt">Received event.</param>
+            <returns>Return true to exit message loop or false otherwise. Default callback returns false.</returns>
+        </member>
+        <member name="T:PluxDotNet.BaseDev">
+            <summary>Base class for all PLUX devices.</summary>
+            <remarks>This class provides the basic functionality common to all PLUX devices.
+A BaseDev device can be instantiated if a specific device functionality is not required.
+A BaseDev instance can be promoted afterwards to a derived class instance, based on device properties.
+This promotion is done by passing the BaseDev instance to the constructor of the derived class.
+Alternatively, a derived class can be directly instantiated from the path string if a specific device functionality is required.
+It is not possible to demote a derived class instance to a BaseDev instance.</remarks>
+        </member>
+        <member name="M:PluxDotNet.Source.#ctor">
+            <summary>Initializes all structure fields to their default values.</summary>
+        </member>
+        <member name="F:PluxDotNet.Source.chMask">
+            <summary>Bitmask of source channels to sample (bit 0 is channel 1, etc).</summary>
+            <remarks>Default value is 1 (channel 1 only).</remarks>
+        </member>
+        <member name="F:PluxDotNet.Source.nBits">
+            <summary>Source sampling resolution in bits (8 or 16).</summary>
+            <remarks>Default value is 16.</remarks>
+        </member>
+        <member name="F:PluxDotNet.Source.freqDivisor">
+            <summary>Source frequency divisor from acquisition base frequency (&gt;= 1).</summary>
+            <remarks>Default value is 1.</remarks>
+        </member>
+        <member name="F:PluxDotNet.Source.port">
+            <summary>Source port (1...8 for analog ports).</summary>
+            <remarks>Default value is zero.</remarks>
+        </member>
+        <member name="T:PluxDotNet.Source">
+            <summary>Acquisition source class.</summary>
+            <remarks>An acquisition source is a sensor connected to a device port.
+Sampling frequency divisor and sampling resolution can be set for each source.
+Each source can have up to 8 channels.
+All source channels share the same frequency divisor and sampling resolution settings defined for the source.</remarks>
+        </member>
+        <member name="F:PluxDotNet.DevInfo.description">
+            <summary>Device description as returned in its description property.</summary>
+        </member>
+        <member name="F:PluxDotNet.DevInfo.path">
+            <summary>Device path (the path to be passed to the device class constructor).</summary>
+        </member>
+        <member name="T:PluxDotNet.DevInfo">
+            <summary>Information about a device found by BaseDev.FindDevices().</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Battery.percentage">
+            <summary>Remaining battery charge as a percentage of full capacity.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Battery.voltage">
+            <summary>Battery voltage in Volts.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.Battery">
+            <summary>Battery state event class.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.SignalGood.isGood">
+            <summary>True if the sensor signal is valid; false otherwise.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.SignalGood.port">
+            <summary>Sensor port.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.SignalGood">
+            <summary>Sensor signal good event class.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Disconnect.reason">
+            <summary>Reason for the device disconnection.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Disconnect.Reason.BatDischarged">
+            <summary>Device battery is discharged.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Disconnect.Reason.ButtonPressed">
+            <summary>Device button was pressed.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Disconnect.Reason.Timeout">
+            <summary>Idle connection timeout (15 min) has elapsed.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.Disconnect.Reason">
+            <summary>Disconnect reason enumeration.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.Disconnect">
+            <summary>Device disconnect event class.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Sync.timestamps">
+            <summary>Synchronized timestamps.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.Sync">
+            <summary>Synchronization event class.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.DigInUpdate.state">
+            <summary>New state of digital port input. If true, new state is High, otherwise it is Low.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.DigInUpdate.channel">
+            <summary>The digital input which changed state, starting at zero.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.DigInUpdate.timestamp">
+            <summary>Event timestamp.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.DigInUpdate">
+            <summary>Digital port input change event class.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.Event">
+            <summary>Event base class.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Clock.value">
+            <summary>Timestamp value.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Clock.source">
+            <summary>Clock source for this timestamp.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Clock.Source.FrameCount">
+            <summary>Acquisition frame counter timestamp.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Clock.Source.RTC">
+            <summary>Device real-time clock timestamp.</summary>
+        </member>
+        <member name="F:PluxDotNet.Event.Clock.Source.None">
+            <summary>No timestamp value.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.Clock.Source">
+            <summary>Clock source type enumeration.</summary>
+        </member>
+        <member name="T:PluxDotNet.Event.Clock">
+            <summary>Event timestamp class.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.MissingModule">
+            <summary>Exception thrown if an API module is missing or invalid (DLL or .so file).</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.InvalidInstance">
+            <summary>Exception thrown if an invalid object instance method was called.</summary>
+            <remarks>A BaseDev object instance becomes invalid when it is successfully promoted to a derived class.</remarks>
+        </member>
+        <member name="T:PluxDotNet.Exception.NotSupported">
+            <summary>Exception thrown if the requested operation is not supported by the device.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.InvalidOperation">
+            <summary>Exception thrown if the requested operation cannot be completed due to current device state.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.InvalidParameter">
+            <summary>Exception thrown if a method call has an invalid parameter value.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.ContactingDevice">
+            <summary>Exception thrown if the connection with the device was lost.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.DeviceNotFound">
+            <summary>Exception thrown if the requested device path was not found.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.AdapterNotFound">
+            <summary>Exception thrown if no Bluetooth adapter was found while trying to connect to a Bluetooth device.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.InitializingPort">
+            <summary>Exception thrown if there was a problem while initializing the communication port.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.OpeningPort">
+            <summary>Exception thrown if there was a problem while opening the communication port.</summary>
+        </member>
+        <member name="T:PluxDotNet.Exception.PluxException">
+            <summary>Generic PLUX API exception.</summary>
+            <remarks>This exception is the base class for all specific exceptions.
+Catch this exception class to ensure that all PLUX API exceptions are caught.</remarks>
+        </member>
+        <member name="M:Plux.StimDev.#ctor(std.basic_string&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte,std.char_traits{System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte},std.allocator&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+\cond
+</member>
+        <member name="T:Plux.StimDev">
+This class is not covered in this documentation.
+</member>
+        <member name="M:Plux.BITalinoDev.getState">
+Returns current device state (BITalino 2 only).
+       * \remarks This method cannot be called during an acquisition.
+
+</member>
+        <member name="M:Plux.BITalinoDev.setPWM(System.Int32)">
+Assigns the analog (PWM) output value (BITalino 2 only).
+       * \param[in] value Analog output value to set (0...255).
+       * The analog output voltage is given by: V (in Volts) = 3.3 * (value+1)/256
+
+</member>
+        <member name="M:Plux.BITalinoDev.setBatThreshold(System.Int32)">
+Sets the battery voltage threshold for the low-battery LED.
+       * \param[in] threshold Battery voltage threshold.
+       * Parameter value | Voltage Threshold
+       * --------------- | -----------------
+       *               0 |   3.4 V
+       *            ...  |   ...
+       *              63 |   3.8 V
+       * \remarks This method cannot be called during an acquisition.
+
+</member>
+        <member name="M:Plux.BITalinoDev.setDOut(std.vector&lt;System.Boolean,std.allocator&lt;System.Boolean&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Assigns the digital outputs states.
+       * \param[in] output Vector of booleans to assign to digital outputs, starting at first output (O1).
+       * On each vector element, false sets the output to low level and true sets the output to high level.
+       * The vector must contain exactly 4 elements for original BITalino (4 digital outputs)
+       * or exactly 2 elements for BITalino 2 (2 digital outputs).
+       * \remarks This method must be called only during an acquisition on original BITalino. On BITalino 2 there is no restriction.
+
+</member>
+        <member name="M:Plux.BITalinoDev.#ctor(Plux.BaseDev*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Promotes a BaseDev instance to BITalinoDev.
+       \param baseDev Instance to be promoted. If promotion is successful, \c baseDev is no longer valid.
+
+</member>
+        <member name="M:Plux.BITalinoDev.#ctor(std.basic_string&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte,std.char_traits{System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte},std.allocator&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Connects to a BITalino device.
+       \param path Path to the BITalino device. It has the same meaning as in BaseDev::BaseDev().
+
+</member>
+        <member name="F:Plux.BITalinoDev.State.digital">
+Array of digital ports states (false for low level or true for high level).
+The array contents are: I1 I2 O1 O2.
+</member>
+        <member name="T:Plux.BITalinoDev.State">
+Current device state returned by BITalinoDev::getState()
+</member>
+        <member name="T:Plux.BITalinoDev">
+Base class for Plux BITalino devices.
+</member>
+        <member name="M:Plux.MemoryDev.onSessionEvent(Plux.Event!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+%Event callback for stored sessions replay.
+       This callback is called by replaySession() for every event to be replayed from the stored session.
+       In order to receive device events, an application must derive MemoryDev class (or any of its derived classes) to a new class
+       and override this method in the new class.
+       \param evt Replayed event, which can be a EvtDigInUpdate or EvtSync object.
+       \return Return true to exit replaySession() or false otherwise. Default callback returns false.
+
+</member>
+        <member name="M:Plux.MemoryDev.onSessionRawFrame(System.Int32,System.Int32!System.Runtime.CompilerServices.IsConst*)">
+Raw frames callback for stored sessions replay.
+       This callback is called by replaySession() for every frame to be replayed from the stored session.
+       In order to receive data frames, an application must derive MemoryDev class (or any of its derived classes) to a new class
+       and override this method in the new class.
+       
+       This callback parameters are equivalent to onRawFrame() callback parameters.
+       \return Return true to exit replaySession() or false otherwise. Default callback returns false.
+
+</member>
+        <member name="M:Plux.MemoryDev.getMemoryUsed">
+Returns the amount of memory used by all sessions stored on the device in kBytes.
+       \remarks This method cannot be called while the device is acquiring.
+       \see \c memorySize property in getProperties().
+
+</member>
+        <member name="M:Plux.MemoryDev.deleteAllSessions">
+Deletes all sessions stored on the device.
+       \remarks This method cannot be called while the device is acquiring.
+
+</member>
+        <member name="M:Plux.MemoryDev.replaySession(System.Int64,System.Int32)">
+Replays a session stored on the device.
+       While a session is being replayed, this method runs a message loop which replaces loop().
+       The message loop receives and dispatches real-time messages and stored session data to the callbacks.
+       When a callback returns true, the session replay ends and this method returns.
+       The method returns if the end of stored session was reached.
+       \param startTime Session::startTime attribute value (as returned by getSessions()) of the session to replay.
+       \param iniFrame Frame sequence number from which the session starts to be replayed (if ommited, start from frame 0).
+       \remarks This method cannot be called from a callback. This method cannot be called while the device is acquiring.
+
+</member>
+        <member name="M:Plux.MemoryDev.getSessions(std.vector&lt;Plux.Session,std.allocator&lt;Plux.Session&gt;&gt;*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Returns the headers of all sessions stored on the device.
+       \param sessions Reference to a #Sessions object to be filled by this method.
+       \remarks This method cannot be called while the device is acquiring.
+
+</member>
+        <member name="M:Plux.MemoryDev.stopSessionAcq">
+Stops an internal acquisition session.
+       \remarks Call stop() to stop a real-time acquisition.
+
+</member>
+        <member name="M:Plux.MemoryDev.deleteAllSchedules">
+Deletes all session schedules from the device.
+       \remarks A running schedule cannot be deleted, so this method cannot be called while the device is acquiring.
+
+</member>
+        <member name="M:Plux.MemoryDev.deleteSchedule(System.Int64)">
+Deletes a session schedule from the device.
+       \param startTime Schedule::startTime attribute value of the schedule to delete.
+       \remarks A running schedule cannot be deleted.
+
+</member>
+        <member name="M:Plux.MemoryDev.addSchedule(Plux.Schedule!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Adds a session schedule to the device.
+       An internal acquisition session (i.e., an acquisition to internal memory) will start
+       when the schedule start time or condition is met.
+       \param sch %Schedule to add.
+       \remarks On current devices firmware, only one schedule can be stored.
+
+</member>
+        <member name="M:Plux.MemoryDev.getSchedules(std.vector&lt;Plux.Schedule,std.allocator&lt;Plux.Schedule&gt;&gt;*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Returns all session schedules stored on the device.
+       The returned schedules can refer to a running session (a running schedule, at most one such schedule) or
+       to a session to run in the future. The schedules were previously added by calling addSchedule() or start().
+       \param schs Reference to a #Schedules object to be filled by this method.
+       \return Index to the running schedule in the returned vector, starting at 1; if zero, no schedule is running.
+       \remarks On current devices firmware, only one schedule can be stored.
+
+</member>
+        <member name="M:Plux.MemoryDev.getTime">
+Returns the device current real-time clock.
+</member>
+        <member name="M:Plux.MemoryDev.setTime(System.Int64)">
+Sets the device real-time clock.
+       \param t Time to set on the device (optional). If this parameter is not given, current host time is used.
+
+</member>
+        <member name="M:Plux.MemoryDev.#ctor(Plux.BaseDev*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Promotes a BaseDev instance to MemoryDev.
+       \param baseDev Instance to be promoted. If promotion is successful, \c baseDev is no longer valid.
+
+</member>
+        <member name="M:Plux.MemoryDev.#ctor(std.basic_string&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte,std.char_traits{System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte},std.allocator&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Connects to a PLUX device.
+       \param path Path to the PLUX device. It has the same meaning as in BaseDev::BaseDev().
+
+</member>
+        <member name="T:Plux.MemoryDev">
+Base class for PLUX signal-acquiring devices with internal memory.
+</member>
+        <member name="F:Plux.Session.schedStartTime">
+The Schedule::startTime attribute value of the schedule associated with this session,
+       which is an unique schedule identifier.
+
+</member>
+        <member name="F:Plux.Session.startTime">
+%Session start time.
+       This attribute value is unique to each session stored on the device,
+       so this attribute is used as a session identifier in MemoryDev::replaySession().
+
+</member>
+        <member name="T:Plux.Session">
+Stored session header class.
+    MemoryDev::getSessions() returns objects of this class.
+
+</member>
+        <member name="T:Plux.SourceEx">
+Acquisition source class with properties attribute.
+    The Session::sources attribute has this class to carry normal Source attributes and additional source properties.
+
+</member>
+        <member name="M:Plux.Schedule.#ctor(System.Int64,System.Int32,System.Single,std.vector&lt;Plux.Source,std.allocator&lt;Plux.Source&gt;&gt;,std.basic_string&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte,std.char_traits{System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte},std.allocator&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte&gt;&gt;)">
+Initializes all structure fields.
+       All arguments are optional. A structure field is initialized with the corresponding argument value, if provided.
+       Otherwise, the field is initialized with its default value.
+
+</member>
+        <member name="F:Plux.Schedule.duration">
+Scheduled session duration limit in seconds.
+       If this attribute is zero, no session duration limit is set.
+       An internal acquisition session can always be stopped by calling MemoryDev::stopSessionAcq().
+       Default value is zero.
+
+</member>
+        <member name="F:Plux.Schedule.startTime">
+Scheduled session start time or condition (1 or a time_t value).
+       If this attribute has the value 1, the scheduled session will start when the digital port input changes.
+       Otherwise, the scheduled session will start when the device real-time clock
+       reaches this value.
+       
+       This attribute value is unique to each schedule on the device,
+       so this attribute is used as a schedule identifier in MemoryDev::deleteSchedule() and Session::schedStartTime.
+       Default value is 1.
+
+</member>
+        <member name="T:Plux.Schedule">
+%Session schedule class.
+    A session schedule contains all the information needed to start an internal acquisition session.
+    \see MemoryDev::addSchedule(), MemoryDev::getSchedules()
+
+</member>
+        <member name="M:Plux.SignalsDev.setDOut(System.Boolean)">
+Sets the digital output state.
+       \param state Output state to assign. If true, output is set to High, otherwise it is set to Low.
+       \remarks On BITalino devices, only the first output (O1) is assigned to the given state. The other outputs are set to Low.
+       Call BITalinoDev::setDOut() to assign all digital outputs.
+
+</member>
+        <member name="M:Plux.SignalsDev.getNumChannels">
+Returns the total number of acquisition channels.
+       The returned value is the total number of channels across all the acquisition sources, or zero if the device is stopped.
+       This value is the number of elements of the data array passed to the onRawFrame() callback.
+
+</member>
+        <member name="M:Plux.SignalsDev.stop">
+Stops a real-time acquisition session.
+       \remarks Call MemoryDev::stopSessionAcq() to stop an internal acquisition session.
+
+</member>
+        <member name="M:Plux.SignalsDev.start(System.Single,std.vector&lt;Plux.Source,std.allocator&lt;Plux.Source&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Starts a real-time acquisition session.
+       \param baseFreq Acquisition base sampling frequency in Hertz.
+       \param sources Signal sources to acquire. See Source.
+       \remarks This method is not supported on BITalino devices.
+
+</member>
+        <member name="M:Plux.SignalsDev.#ctor(Plux.BaseDev*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Promotes a BaseDev instance to SignalsDev.
+       \param baseDev Instance to be promoted. If promotion is successful, \c baseDev is no longer valid.
+
+</member>
+        <member name="M:Plux.SignalsDev.#ctor(std.basic_string&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte,std.char_traits{System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte},std.allocator&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Connects to a PLUX device.
+       \param path Path to the PLUX device. It has the same meaning as in BaseDev::BaseDev().
+
+</member>
+        <member name="T:Plux.SignalsDev">
+Base class for PLUX signal-acquiring devices.
+</member>
+        <member name="M:Plux.Source.#ctor(System.Int32,System.Int32,System.Int32,System.Int32)">
+Initializes all structure fields.
+       All arguments are optional. A structure field is initialized with the corresponding argument value, if provided.
+       Otherwise, the field is initialized with its default value.
+
+</member>
+        <member name="T:Plux.Source.Class">
+%Source class enumeration
+</member>
+        <member name="T:Plux.BaseDev.X">
+\cond
+</member>
+        <member name="M:Plux.BaseDev.onInterrupt(System.Void*)">
+Interrupt signal callback.
+       This callback is called by message loop after interrupt() is called from another thread.
+       In order to receive interrupt signals, an application must derive BaseDev class (or any of its derived classes) to a new class
+       and override this method in the new class.
+       \param param Optional parameter passed to interrupt() (or NULL if no parameter was given).
+       \return Return true to exit message loop or false otherwise. Default callback returns false.
+
+</member>
+        <member name="M:Plux.BaseDev.onTimeout">
+Timeout callback.
+       This callback is called by message loop when a timeout condition occurred.
+       In order to receive timeout conditions, an application must derive BaseDev class (or any of its derived classes) to a new class
+       and override this method in the new class.
+       \return Return true to exit message loop or false otherwise. Default callback returns false.
+       \see setTimeout()
+
+</member>
+        <member name="M:Plux.BaseDev.onEvent(Plux.Event!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Event callback.
+       This callback is called by message loop when an event is received from the device.
+       In order to receive device events, an application must derive BaseDev class (or any of its derived classes) to a new class
+       and override this method in the new class.
+       \param evt Received event, which can be a EvtDigInUpdate, EvtDisconnect, EvtSchedChange or EvtSync object.
+       \return Return true to exit message loop or false otherwise. Default callback returns false.
+
+</member>
+        <member name="M:Plux.BaseDev.interrupt(System.Void*)">
+Sends an interrupt signal to loop().
+       This method can be called from a thread while loop() is running on another thread.
+       The onInterrupt() callback will be called from loop() (in the context of its thread).
+       \param param An optional parameter to be passed to onInterrupt() callback.
+       \remarks This method cannot be called from a callback, and it cannot be called if loop() is not running in another thread.
+
+</member>
+        <member name="M:Plux.BaseDev.loop">
+Runs the device message loop.
+       The message loop receives and dispatches the messages from the device to the callbacks.
+       This method returns when a callback returns True.
+       \remarks This method cannot be called from a callback.
+
+</member>
+        <member name="M:Plux.BaseDev.setTimeout(System.Int32)">
+Sets the receiving timeout value for loop().
+       \param timeout Timeout value in milliseconds (optional).
+       If \c timeout is 0, an immediate timeout condition occurs in loop() if there are no pending messages from device to dispatch.
+       If \c timeout is not given or if it is -1, a timeout condition never occurs.
+       \see onTimeout()
+
+</member>
+        <member name="M:Plux.BaseDev.getBattery">
+\endcond
+Returns the remaining battery charge as a percentage of full capacity.
+       The returned value is -1 if the device is charging.
+
+</member>
+        <member name="M:Plux.BaseDev.setParameter(System.Int32,System.Int32,System.Void!System.Runtime.CompilerServices.IsConst*,System.Int32)">
+\cond
+</member>
+        <member name="M:Plux.BaseDev.getProperties">
+Returns the device properties.
+       The device properties map #String keywords to Variant values. The currently defined keywords are:
+       Keyword        | Meaning
+       -------------- | -------
+       \c description | Device description string
+       \c fwVersion   | Device firmware version
+       \c hwVersion   | Device hardware version (not present in old devices)
+       \c memorySize  | Device internal memory size in kBytes (only on MemoryDev instances) \n (zero if internal memory is not available)
+       \c path        | Device path string as passed to constructor
+       \c productID   | Device product identifier
+       \c uid         | Device unique identifier string
+       
+       The \c fwVersion, \c hwVersion and \c productID properties are composed of two numbers (the major and minor numbers).
+       These properties and are coded as 2-byte integers where the higher byte is the major number
+       and the lower byte is the minor number.
+
+</member>
+        <member name="M:Plux.BaseDev.Dispose">
+Disconnects from the device.
+       If the device is in real-time acquisition (through SignalsDev.start()), it is automatically stopped.
+
+</member>
+        <member name="M:Plux.BaseDev.#ctor(std.basic_string&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte,std.char_traits{System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte},std.allocator&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Connects to a PLUX device.
+       \param path Path to the PLUX device. It can have one of the following formats:
+       Format               | Meaning                          | Supported platforms
+       -------------------- | -------------------------------- | -------------------
+       xx:xx:xx:xx:xx:xx    | Classic Bluetooth MAC address    | All platforms
+       BTHxx:xx:xx:xx:xx:xx | Classic Bluetooth MAC address    | All platforms
+       BLExx:xx:xx:xx:xx:xx | Bluetooth Low Energy MAC address | Windows
+       COMn                 | COM serial/virtual port          | Windows
+       /dev/...             | Serial device                    | Mac OS and Linux
+       USB or USBn          | USB adapter connection           | Windows
+
+</member>
+        <member name="M:Plux.BaseDev.findDevices(std.basic_string&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte,std.char_traits{System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte},std.allocator&lt;System.SByte!System.Runtime.CompilerServices.IsSignUnspecifiedByte&gt;&gt;!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Finds PLUX devices within the given domain.
+       \param domain Domain of search (optional). It can be "BTH" for a Classic Bluetooth search,
+       "BLE" for a Bluetooth Low Energy search, or "USB" for an USB search.
+       If it is not given (or if it is an empty string), a search is attempted in all domains.
+
+</member>
+        <member name="T:Plux.BaseDev">
+\endcond
+Base class for all PLUX devices.
+    This class provides the basic functionality common to all PLUX devices.
+    A BaseDev device can be instantiated if a specific device functionality is not required.
+    A BaseDev instance can be promoted afterwards to a derived class instance, based on device properties.
+    This promotion is done by passing the BaseDev instance to the constructor of the derived class.
+    
+    Alternatively, a derived class can be directly instantiated from the path string if a specific device functionality is required.
+    
+    It is not possible to demote a derived class instance to a BaseDev instance.
+
+</member>
+        <member name="T:Plux.EvtTest">
+\cond
+</member>
+        <member name="T:Plux.EvtBattery">
+Battery state event class.
+</member>
+        <member name="T:Plux.EvtSignalGood">
+Sensor signal good event class.
+</member>
+        <member name="T:Plux.EvtDisconnect.Reason">
+Disconnect reason enumeration.
+</member>
+        <member name="T:Plux.EvtDisconnect">
+Device disconnect event class.
+</member>
+        <member name="T:Plux.EvtGestFeatures">
+Gesture features event class.
+This event is sent by GestureWatch devices only.
+</member>
+        <member name="T:Plux.EvtSync">
+Synchronization event class.
+</member>
+        <member name="T:Plux.EvtSchedChange.Action">
+%Schedule action enumeration.
+</member>
+        <member name="T:Plux.EvtSchedChange">
+%Session schedule change event class.
+</member>
+        <member name="T:Plux.EvtDigInUpdate">
+Digital port input change event class.
+</member>
+        <member name="F:Plux.Event.type">
+\endcond
+</member>
+        <member name="F:TypeTest">
+\cond
+</member>
+        <member name="T:Plux.Event.Type">
+%Event type enumeration.
+</member>
+        <member name="T:Plux.Event">
+%Event base class.
+</member>
+        <member name="F:Plux.Clock.source">
+\endcond
+</member>
+        <member name="F:Bluetooth">
+\cond
+</member>
+        <member name="T:Plux.Clock.Source">
+%Clock source type enumeration.
+</member>
+        <member name="T:Plux.Clock">
+%Event timestamp class.
+</member>
+        <member name="T:Plux.Error.MissingModule">
+%Exception thrown if an API module is missing or invalid (DLL or .so file).
+</member>
+        <member name="T:Plux.Error.NotSupported">
+%Exception thrown if the requested operation is not supported by the device.
+</member>
+        <member name="M:Plux.Error.InvalidOperation.getDescription">
+\endcond
+</member>
+        <member name="F:Plux.Error.InvalidOperation.code">
+\cond
+</member>
+        <member name="T:Plux.Error.InvalidOperation">
+%Exception thrown if the requested operation cannot be completed due to current device state.
+</member>
+        <member name="T:Plux.Error.InvalidParameter">
+%Exception thrown if a method call has an invalid parameter value.
+</member>
+        <member name="T:Plux.ErrorException">
+Base class for all error exceptions.
+    An error exception is thrown when an application programming error is preventing the API from succeeding its current operation.
+
+</member>
+        <member name="T:Plux.Notification.ContactingDevice">
+%Exception thrown if the connection with the device was lost.
+</member>
+        <member name="T:Plux.Notification.DeviceNotFound">
+%Exception thrown if the requested device path was not found.
+</member>
+        <member name="T:Plux.Notification.AdapterNotFound">
+%Exception thrown if no Bluetooth adapter was found while trying to connect to a Bluetooth device.
+</member>
+        <member name="T:Plux.Notification.InitializingPort">
+%Exception thrown if there was a problem while initializing the communication port.
+</member>
+        <member name="T:Plux.Notification.OpeningPort">
+%Exception thrown if there was a problem while opening the communication port.
+</member>
+        <member name="T:Plux.NotifException">
+Base class for all notification exceptions.
+    A notification exception is thrown when an external condition is preventing the API from succeeding its current operation.
+
+</member>
+        <member name="M:Plux.Exception.getDescription">
+Returns the exception description string.
+</member>
+        <member name="T:Plux.Exception">
+Generic PLUX C++ API exception.
+    This exception is the base class for all specific exceptions.
+    Catch this exception class to ensure that all PLUX C++ API exceptions are caught.
+
+</member>
+        <member name="D:Plux.Properties">
+Map from #String keywords to Variant types.
+\see BaseDev::getProperties(), SourceEx::properties
+</member>
+        <member name="M:Plux.Variant.#ctor(Plux.Variant!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced)">
+Constructs a %Variant as a copy of another %Variant.
+</member>
+        <member name="T:Plux.Variant.Type">
+Data type enumeration
+</member>
+        <member name="T:Plux.Variant">
+This class encapsulates a value of one of following data types: bool, int, float and #String
+\see Properties
+</member>
+        <member name="F:Plux.DevInfo.description">
+Device description as returned in its \c description property.
+\see BaseDev::getProperties()
+</member>
+        <member name="F:Plux.DevInfo.path">
+Device path (the path to be passed to the device class constructor).
+\see BaseDev::BaseDev()
+</member>
+        <member name="T:Plux.DevInfo">
+Information about a device found by BaseDev::findDevices().
+</member>
+        <!-- Discarding badly formed XML document comment for member 'T:Plux.Error.InvalidInstance'. -->
+        <!-- Discarding badly formed XML document comment for member 'T:Plux.Source'. -->
+        <!-- Discarding badly formed XML document comment for member 'D:Plux.Sources'. -->
+        <!-- Discarding badly formed XML document comment for member 'M:Plux.SignalsDev.start(System.Single,System.Int32,System.Int32)'. -->
+        <!-- Discarding badly formed XML document comment for member 'M:Plux.SignalsDev.start(System.Single,std.vector<System.Int32,std.allocator<System.Int32>>!System.Runtime.CompilerServices.IsConst*!System.Runtime.CompilerServices.IsImplicitlyDereferenced,System.Int32)'. -->
+        <!-- Discarding badly formed XML document comment for member 'M:Plux.SignalsDev.onRawFrame(System.Int32,System.Int32!System.Runtime.CompilerServices.IsConst*)'. -->
+    </members>
+</doc>
