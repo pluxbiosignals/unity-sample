@@ -51,14 +51,23 @@ public class PluxDeviceManager
     // [Redefinition of the imported methods ensuring that they are acessible on other scripts]
 
     // A simple function used to check if the .dll generated during the build process was successfully imported by Unity.
-    public int WelcomeFunctionUnity() => WelcomeFunction();
+    public int WelcomeFunctionUnity()
+    {
+        return WelcomeFunction();
+    }
 
     // Method used to establish a connection between PLUX devices and computer.
     // Behaves like an object constructor.
     // macAddress -> Device unique identifier, i.e., mac-address.
-    public void PluxDev(string macAddress) => PluxDevUnity(macAddress);
+    public void PluxDev(string macAddress)
+    {
+        PluxDevUnity(macAddress);
+    }
 
-    public void DisconnectPluxDev() => DisconnectPluxDevUnity();
+    public void DisconnectPluxDev()
+    {
+        DisconnectPluxDevUnity();
+    }
 
     // Class method used to Start a Real-Time acquisition:
     // samplingRate -> Desired sampling rate that will be used during the data acquisition stage.
@@ -173,7 +182,10 @@ public class PluxDeviceManager
     }
 
     // Class method used to interrupt the real-time communication loop.
-    private void InterruptAcquisitionUnity() => InterruptAcquisition();
+    private void InterruptAcquisitionUnity()
+    {
+        InterruptAcquisition();
+    }
 
     public void StopAcquisitionUnity()
     {
@@ -213,7 +225,7 @@ public class PluxDeviceManager
         for (int k = 0; k < listDevicesByType.Count; k++)
         {
             // Convert listDevices (in a String format) to an array.
-            string[] tempListDevices = Marshal.PtrToStringAnsi(listDevicesByType[k])?.Split('&');
+            string[] tempListDevices = Marshal.PtrToStringAnsi(listDevicesByType[k]).Split('&');
 
             // Add elements to the returnable list.
             for (int i = 0; i < tempListDevices.Length; i++)
@@ -233,13 +245,22 @@ public class PluxDeviceManager
     }
 
     // "Getting" method for determination of the number of used channels during the acquisition.
-    public int GetNbrChannelsUnity() => GetNbrChannels();
+    public int GetNbrChannelsUnity()
+    {
+        return GetNbrChannels();
+    }
 
     // "Getting" method for checking the state of the communication flag.
-    private bool GetCommunicationFlagUnity() => GetCommunicationFlag();
+    private bool GetCommunicationFlagUnity()
+    {
+        return GetCommunicationFlag();
+    }
 
     // "Getting" method dedicated to check the battery level of the device.
-    public int GetBatteryUnity() => GetBattery();
+    public int GetBatteryUnity()
+    {
+        return GetBattery();
+    }
 
     // "Getting" method intended to check the type of the connected device.
     public string GetDeviceTypeUnity()
