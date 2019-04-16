@@ -57,7 +57,7 @@ namespace Assets.Scripts
 
         // [Delegate References]
         // Delegates (needed for callback purposes).
-        public delegate bool FPtr(int value, int nbrChannel);
+        public delegate bool FPtr(int nSeq, IntPtr dataIn, int dataInSize);
 
         // [Generic Variables]
         public PluxDeviceManager PluxDevManager;
@@ -179,20 +179,24 @@ namespace Assets.Scripts
 
         // Callback Handler (function invoked during signal acquisition, being essential to ensure the 
         // communication between our C++ API and the Unity project.
-        bool CallbackHandler(int data, int channel)
+        bool CallbackHandler(int nSeq, IntPtr data, int dataLength)
         {
             // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
             lock (MultiThreadString)
             {
                 // Store data in a string format (sharable variable).
-                if (channel != 0)
+                MultiThreadString += "#";
+
+                // Convert our data pointer to an array format.
+                int[] dataArray = new int[dataLength];
+                Marshal.Copy(data, dataArray, 0, dataLength);
+
+                // The resulting dataArray will have in each entry the sampled value of the respective channel.
+                // Samples are organized in a sequential way, so if channels 1 and 4 are active it means that
+                // data[0] will contain the sample value of channel 1 while data[1] is the sample collected on channel 4.
+                for (int i = 0; i < dataArray.Length; i++)
                 {
-                    MultiThreadString += data + "&";
-                }
-                else
-                {
-                    // Identification where a new package of data was received (i.e. when the data of the first selected channel reaches)
-                    MultiThreadString += "#";
+                    MultiThreadString += dataArray[i].ToString() + "&";
                 }
             }
             return true;

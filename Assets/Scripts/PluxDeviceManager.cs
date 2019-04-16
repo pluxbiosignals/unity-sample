@@ -40,7 +40,7 @@ public class PluxDeviceManager
     private static extern System.IntPtr GetDeviceType();
 
     // Delegates (needed for callback purposes).
-    public delegate bool FPtr(int value, int nbrChannel);
+    public delegate bool FPtr(int nSeq, IntPtr dataIn, int dataInSize);
 
     // [Generic Variables]
     public Thread AcquisitionThread;
@@ -83,8 +83,11 @@ public class PluxDeviceManager
         // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
         //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
         //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        FPtr callabackPointer = new FPtr(CallbackHandlerUnity);
-        
+        if (callbackPointer == null)
+        {
+            return;
+        }
+
         // Conversion of List of active channels to a string format.
         for (int i = 0; i < 8; i++)
         {
@@ -118,7 +121,10 @@ public class PluxDeviceManager
         // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
         //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
         //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        FPtr callabackPointer = new FPtr(CallbackHandlerUnity);
+        if (callbackPointer == null)
+        {
+            return;
+        }
 
         // Start of the real-time acquisition.
         StartAcquisitionByNbr(samplingRate, numberOfChannels, resolution, callbackPointer);
@@ -140,8 +146,10 @@ public class PluxDeviceManager
         // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
         //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
         //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        FPtr callabackPointer = new FPtr(CallbackHandlerUnity);
-        
+        if (callbackPointer == null)
+        {
+            return;
+        }
 
         // Conversion of List of active channels to a string format.
         for (int i = 0; i < 8; i++)
@@ -175,9 +183,9 @@ public class PluxDeviceManager
     }
 
     // Callback function responsible for receiving the acquired data samples from the communication loop started by StartLoopUnity().
-    private bool CallbackHandlerUnity(int data, int nbrChannel)
+    private bool CallbackHandlerUnity(int nSeq, IntPtr dataIn, int dataInSize)
     {
-        this.callbackPointer(data, nbrChannel);
+        this.callbackPointer(nSeq, dataIn, dataInSize);
         return true;
     }
 

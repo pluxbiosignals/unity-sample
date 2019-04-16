@@ -188,7 +188,7 @@ Inside the callback function data will be successively reaching in packages cont
 
 ### Parameters
 
-+	**callbackHandler** `FPtr`: A function pointer to the callback that will receive the acquired data samples on the Unity side.
++	**callbackHandler** `FPtr`: A function pointer to the callback that will receive the acquired data samples on the Unity side. This callback function should return a boolean flag and should contain three arguments `(int nSeq, IntPtr data, int dataLength)`. `nSeq` is the number of the received sample while `data` contains a pointer with the acquired samples and `dataLength` is the size of `data` pointer. The `data` pointer needs to be converted to an array format.
 
 ## GetNbrChannelsUnity
 
