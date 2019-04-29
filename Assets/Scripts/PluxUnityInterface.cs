@@ -116,7 +116,7 @@ namespace Assets.Scripts
                     // Split our string, taking into consideration our separator.
                     string[] MultiThreadArray = MultiThreadString.Split('#');
                     // Each entry of the MultiThreadArray will contain a package of data from the different active channels.
-                    for (int i = 0; i < MultiThreadArray.Length - 1; i++)
+                    for (int i = 0; i < MultiThreadArray.Length; i++)
                     {
                         string[] MultiThreadSubArray = MultiThreadArray[i].Split('&');
                         for (int j = 0; j < MultiThreadSubArray.Length - 1; j++)
@@ -133,45 +133,56 @@ namespace Assets.Scripts
                     // Reboot string.
                     MultiThreadString = "";
 
-                    // Check if list contains more than 20 seconds of data [Memory Release].
-                    if (MultiThreadList[VisualizationChannel].Count > 2 * GraphWindSize)
+                    // Check if there it was communicated an event/error code.
+                    int lastCommunicatedData = MultiThreadList[ActiveChannels[0]][MultiThreadList[ActiveChannels[0]].Count - 1];
+                    if (lastCommunicatedData >= 0)
                     {
-                        for (int k = 1; k < MultiThreadList.Count; k++)
+                        // Check if list contains more than 20 seconds of data [Memory Release].
+                        if (MultiThreadList[VisualizationChannel].Count > 2 * GraphWindSize)
                         {
-                            // Check if the current channel is an active channel.
-                            if (ActiveChannels.Contains(k))
+                            for (int k = 1; k < MultiThreadList.Count; k++)
                             {
-                                MultiThreadList[k] = MultiThreadList[k].GetRange(MultiThreadList[k].Count - 2 * GraphWindSize, 2 * GraphWindSize);
+                                // Check if the current channel is an active channel.
+                                if (ActiveChannels.Contains(k))
+                                {
+                                    MultiThreadList[k] = MultiThreadList[k].GetRange(MultiThreadList[k].Count - 2 * GraphWindSize, 2 * GraphWindSize);
+                                }
+                            }
+                        }
+
+                        // Creation of the first graphical representation of the results.
+                        if (MultiThreadList[VisualizationChannel].Count >= 0)
+                        {
+                            if (MultiThreadList[VisualizationChannel].Count != 0 && MultiThreadList[VisualizationChannel].Count > GraphWindSize && FirstPlot == true)
+                            {
+                                // Update flag (after this step we won't enter again on this statement).
+                                FirstPlot = false;
+
+                                // Hide Acquiring Icon Image.
+                                //AcquiringIcon.SetActive(false);
+
+                                // Plot first set of data.
+                                // Subsampling if sampling rate is bigger than 100 Hz.
+                                List<int> subSamplingList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
+                                GraphZone.ShowGraph(subSamplingList, null, -1, (int _i) => "-" + (GraphWindSize - _i), (float _f) => Mathf.RoundToInt(_f / 1000) + "k");
+                            }
+                            // Update plot.
+                            else if (FirstPlot == false)
+                            {
+                                // Get the values linked with the last 10 seconds of information.
+                                MultiThreadSubList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
+                                for (int j = 0; j < MultiThreadSubList.Count; j++)
+                                {
+                                    GraphZone.UpdateValue(j, MultiThreadSubList[j]);
+                                }
                             }
                         }
                     }
-
-                    // Creation of the first graphical representation of the results.
-                    if (MultiThreadList[VisualizationChannel].Count >= 0)
+                    // If an event/error code was sent by PluxDeviceManager then the acquisition should be stopped.
+                    else
                     {
-                        if (MultiThreadList[VisualizationChannel].Count != 0 && MultiThreadList[VisualizationChannel].Count > GraphWindSize && FirstPlot == true)
-                        {
-                            // Update flag (after this step we won't enter again on this statement).
-                            FirstPlot = false;
-
-                            // Hide Acquiring Icon Image.
-                            //AcquiringIcon.SetActive(false);
-
-                            // Plot first set of data.
-                            // Subsampling if sampling rate is bigger than 100 Hz.
-                            List<int> subSamplingList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
-                            GraphZone.ShowGraph(subSamplingList, null, -1, (int _i) => "-" + (GraphWindSize - _i), (float _f) => Mathf.RoundToInt(_f / 1000) + "k");
-                        }
-                        // Update plot.
-                        else if (FirstPlot == false)
-                        {
-                            // Get the values linked with the last 10 seconds of information.
-                            MultiThreadSubList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
-                            for (int j = 0; j < MultiThreadSubList.Count; j++)
-                            {
-                                GraphZone.UpdateValue(j, MultiThreadSubList[j]);
-                            }
-                        }
+                        // Stop Acquisition in a secure way.
+                        StopButtonFunction(lastCommunicatedData);
                     }
                 }
             }
@@ -184,7 +195,6 @@ namespace Assets.Scripts
             // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
             lock (MultiThreadString)
             {
-                //Console.WriteLine("nSeq_: " + nSeq.ToString() + " data_: " + data[0].ToString());
                 // Store data in a string format (sharable variable).
                 MultiThreadString += "#";
 
@@ -195,6 +205,9 @@ namespace Assets.Scripts
                 {
                     MultiThreadString += data[i].ToString() + "&";
                 }
+
+                // DEBUG
+                //Console.WriteLine("nSeq_: " + nSeq.ToString() + " data_: " + data[0].ToString());
             }
             return true;
         }
@@ -277,7 +290,7 @@ namespace Assets.Scripts
         }
 
         // Function invoked during the onClick event of "ConnectButton".
-        public void ConnectButtonFunction()
+        public void ConnectButtonFunction(bool typeOfStop)
         {
             try
             {
@@ -398,10 +411,13 @@ namespace Assets.Scripts
                 }
                 else if (ConnectText.text == "Disconnect")
                 {
-                
-                    // Disconnect from device.
-                    PluxDevManager.DisconnectPluxDev();
 
+                    // Disconnect device if the stop was forced by an event or timeout exception.
+                    if (typeOfStop == false)
+                    {
+                        PluxDevManager.DisconnectPluxDev();
+                    }
+                    
                     ConnectText.text = "Connect";
                     GreenFlag.SetActive(false);
                     RedFlag.SetActive(true);
@@ -561,11 +577,12 @@ namespace Assets.Scripts
         }
 
         // Function invoked during the onClick event of "StopButton".
-        public void StopButtonFunction()
+        public void StopButtonFunction(int forceStop=0)
         {
             // Invoke stop function from PluxDeviceManager.
-            PluxDevManager.StopAcquisitionUnity();
-
+            bool typeOfStop;
+            typeOfStop = PluxDevManager.StopAcquisitionUnity(forceStop);
+            
             // Disable StopButton.
             StopButton.interactable = false;
 
@@ -578,6 +595,8 @@ namespace Assets.Scripts
             // Stop Message.
             Debug.Log("Acquisition was Stopped :D");
 
+            // Disconnect device if a forced stop occurred.
+            ConnectButtonFunction(typeOfStop);
         }
 
         // Function invoked during the onClick event of the About Button.

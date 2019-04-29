@@ -4381,7 +4381,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 699108190}
         m_MethodName: StopButtonFunction
-        m_Mode: 1
+        m_Mode: 3
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -8409,7 +8409,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 699108190}
         m_MethodName: ConnectButtonFunction
-        m_Mode: 1
+        m_Mode: 6
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine

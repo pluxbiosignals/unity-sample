@@ -184,7 +184,6 @@ public class PluxDeviceManager
         }
 
         // Start of acquisition.
-        Debug.Log(ActiveChannelsStr);
         StartAcquisitionMuscleBan(samplingRate, ActiveChannelsStr, resolution, freqDivisor, callbackPointerUnity);
         
         // Start Communication Loop.
@@ -213,9 +212,11 @@ public class PluxDeviceManager
             int[] dataArray = new int[dataInSize];
             Marshal.Copy(dataIn, dataArray, 0, dataInSize);
 
+            // DEBUG
             //Console.WriteLine("nSeq: " + nSeq.ToString() + " data: " + dataArray[0].ToString());
 
             callbackPointer.GetCallbackRef()(nSeq, dataArray, dataInSize);
+
             return true;
         }
     }
@@ -226,32 +227,62 @@ public class PluxDeviceManager
         InterruptAcquisition();
     }
 
-    public void StopAcquisitionUnity()
+    // Method dedicated to stop the real-time acquisition.
+    // forceStop -> An identifier that specify when the stop command was voluntarily sent by the user (>=0) or forced  by an event or exception (-1, -2...).
+    // RETURN (bool): A flag identifying when the acquisition was stopped in a forced way (true) or triggered by the user (false).
+    public bool StopAcquisitionUnity(int forceStop=0)
     {
-        // Interrupt real-time communication loop.
-        Console.WriteLine("Communication Flag (Before Interrupt): " + GetCommunicationFlag());
-        InterruptAcquisition();
-
-        // Wait for the communication of the flag stating the end of the communication loop.
-        bool communicationFlag = GetCommunicationFlag();
-        Console.WriteLine("Communication Flag (After Interrupt): " + GetCommunicationFlag());
-        while (communicationFlag == true)
+        // Returned variable.
+        bool forceFlag = false;
+        
+        // Check if the StopButtonFunction was invoked by the user (button click) or after a Disconnect Event was triggered.
+        if (forceStop >= 0)
         {
-            communicationFlag = GetCommunicationFlag();
+            // Interrupt real-time communication loop.
+            Console.WriteLine("Communication Flag (Before Interrupt): " + GetCommunicationFlag());
+            InterruptAcquisition();
+
+            // Wait for the communication of the flag stating the end of the communication loop.
+            bool communicationFlag = GetCommunicationFlag();
+            Console.WriteLine("Communication Flag (After Interrupt): " + GetCommunicationFlag());
+            while (communicationFlag == true)
+            {
+                communicationFlag = GetCommunicationFlag();
+            }
+            Console.WriteLine("Communication Flag (After Loop): " + GetCommunicationFlag());
+
+            // Stop acquisition.
+            StopAcquisition();
+            Console.WriteLine("Thread State: " + AcquisitionThread.ThreadState);
+            AcquisitionThread.Abort();
+            Console.WriteLine("Thread State (After Aborting): " + AcquisitionThread.ThreadState);
         }
-        Console.WriteLine("Communication Flag (After Loop): " + GetCommunicationFlag());
+        else
+        {
+            // Close Thread.
+            Console.WriteLine("Thread State: " + AcquisitionThread.ThreadState);
+            AcquisitionThread.Abort();
+            Console.WriteLine("Thread State (After Aborting): " + AcquisitionThread.ThreadState);
 
-        // Stop acquisition.
-        StopAcquisition();
-        Console.WriteLine("Thread State: " + AcquisitionThread.ThreadState);
-        AcquisitionThread.Abort();
-        Console.WriteLine("Thread State (After Aborting): " + AcquisitionThread.ThreadState);
+            // Disconnect device if a forced stop occurred.
+            if (forceStop == -1)
+            {
+                //DisconnectPluxDev();
+            }
 
+            // Update forceFlag.
+            forceFlag = true;
+
+            // Debug Message.
+            Debug.Log("Real-Time Data Acquisition stopped due to the lost of connection with PLUX Device.");
+        }
         // Reboot variables.
         ActiveChannelsStr = "";
 
         // Update global flag.
         AcquisitionStopped = true;
+
+        return forceFlag;
     }
 
     // Class method intended to find the list of detectable devices through Bluetooth communication.
