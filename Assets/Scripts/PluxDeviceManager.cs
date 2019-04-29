@@ -41,12 +41,14 @@ public class PluxDeviceManager
 
     // Delegates (needed for callback purposes).
     public delegate bool FPtr(int nSeq, IntPtr dataIn, int dataInSize);
+    public delegate bool FPtrUnity(int nSeq, int[] dataIn, int dataInSize);
 
     // [Generic Variables]
     public Thread AcquisitionThread;
     public int SamplingRate;
     public string ActiveChannelsStr = "";
-    public FPtr callbackPointer;
+    public bool AcquisitionStopped = true;
+    private static CallbackManager callbackPointer;
 
     // [Redefinition of the imported methods ensuring that they are acessible on other scripts]
 
@@ -66,7 +68,15 @@ public class PluxDeviceManager
 
     public void DisconnectPluxDev()
     {
-        DisconnectPluxDevUnity();
+        if (AcquisitionThread != null)
+        {
+            Console.WriteLine("Thread Unity Forced to Close");
+            if (AcquisitionStopped == false)
+            {
+                StopAcquisitionUnity();
+            }
+            DisconnectPluxDevUnity();
+        }
     }
 
     // Class method used to Start a Real-Time acquisition:
@@ -83,7 +93,8 @@ public class PluxDeviceManager
         // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
         //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
         //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        if (callbackPointer == null)
+        FPtr callbackPointerUnity = new FPtr(CallbackHandlerUnity);
+        if (callbackPointerUnity == null)
         {
             return;
         }
@@ -102,10 +113,13 @@ public class PluxDeviceManager
         }
 
         // Start of acquisition.
-        StartAcquisition(samplingRate, ActiveChannelsStr, resolution, callbackPointer);
+        StartAcquisition(samplingRate, ActiveChannelsStr, resolution, callbackPointerUnity);
 
         // Start Communication Loop.
         StartLoopUnity();
+
+        // Update global flag.
+        AcquisitionStopped = false;
     }
 
     // Class method used to Start a Real-Time acquisition:
@@ -121,16 +135,20 @@ public class PluxDeviceManager
         // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
         //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
         //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        if (callbackPointer == null)
+        FPtr callbackPointerUnity = new FPtr(CallbackHandlerUnity);
+        if (callbackPointerUnity == null)
         {
             return;
         }
 
         // Start of the real-time acquisition.
-        StartAcquisitionByNbr(samplingRate, numberOfChannels, resolution, callbackPointer);
+        StartAcquisitionByNbr(samplingRate, numberOfChannels, resolution, callbackPointerUnity);
 
         // Start Communication Loop.
         StartLoopUnity();
+
+        // Update global flag.
+        AcquisitionStopped = false;
     }
 
     // Class method used to Start a Real-Time acquisition (on muscleBAN):
@@ -146,7 +164,8 @@ public class PluxDeviceManager
         // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
         //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
         //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        if (callbackPointer == null)
+        FPtr callbackPointerUnity = new FPtr(CallbackHandlerUnity);
+        if (callbackPointerUnity == null)
         {
             return;
         }
@@ -166,10 +185,13 @@ public class PluxDeviceManager
 
         // Start of acquisition.
         Debug.Log(ActiveChannelsStr);
-        StartAcquisitionMuscleBan(samplingRate, ActiveChannelsStr, resolution, freqDivisor, callbackPointer);
+        StartAcquisitionMuscleBan(samplingRate, ActiveChannelsStr, resolution, freqDivisor, callbackPointerUnity);
         
         // Start Communication Loop.
         StartLoopUnity();
+
+        // Update global flag.
+        AcquisitionStopped = false;
     }
 
     // Trigger the start of the communication loop (between PLUX device and computer).
@@ -185,8 +207,17 @@ public class PluxDeviceManager
     // Callback function responsible for receiving the acquired data samples from the communication loop started by StartLoopUnity().
     private bool CallbackHandlerUnity(int nSeq, IntPtr dataIn, int dataInSize)
     {
-        this.callbackPointer(nSeq, dataIn, dataInSize);
-        return true;
+        lock (callbackPointer)
+        {
+            // Convert our data pointer to an array format.
+            int[] dataArray = new int[dataInSize];
+            Marshal.Copy(dataIn, dataArray, 0, dataInSize);
+
+            //Console.WriteLine("nSeq: " + nSeq.ToString() + " data: " + dataArray[0].ToString());
+
+            callbackPointer.GetCallbackRef()(nSeq, dataArray, dataInSize);
+            return true;
+        }
     }
 
     // Class method used to interrupt the real-time communication loop.
@@ -218,6 +249,9 @@ public class PluxDeviceManager
 
         // Reboot variables.
         ActiveChannelsStr = "";
+
+        // Update global flag.
+        AcquisitionStopped = true;
     }
 
     // Class method intended to find the list of detectable devices through Bluetooth communication.
@@ -246,9 +280,9 @@ public class PluxDeviceManager
 
     // Definition of the callback function responsible for managing the acquired data (which is defined on users Unity script).
     // callbackHandler -> A function pointer to the callback that will receive the acquired data samples on the Unity side.
-    public bool SetCallbackHandler(FPtr callbackHandler)
+    public bool SetCallbackHandler(FPtrUnity callbackHandler)
     {
-        this.callbackPointer = new FPtr(callbackHandler);
+        callbackPointer = new CallbackManager(callbackHandler);
         return true;
     }
 
@@ -259,7 +293,7 @@ public class PluxDeviceManager
     }
 
     // "Getting" method for checking the state of the communication flag.
-    private bool GetCommunicationFlagUnity()
+    public bool GetCommunicationFlagUnity()
     {
         return GetCommunicationFlag();
     }
@@ -274,5 +308,20 @@ public class PluxDeviceManager
     public string GetDeviceTypeUnity()
     {
         return Marshal.PtrToStringAnsi(GetDeviceType());
+    }
+
+    // Class that manages the reference to callbackPointer.
+    public class CallbackManager
+    {
+        public FPtrUnity callbackReference;
+        public CallbackManager(FPtrUnity callbackPointer)
+        {
+            callbackReference = callbackPointer;
+        }
+
+        public FPtrUnity GetCallbackRef()
+        {
+            return callbackReference;
+        }
     }
 }

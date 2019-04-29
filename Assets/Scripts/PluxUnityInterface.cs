@@ -179,24 +179,21 @@ namespace Assets.Scripts
 
         // Callback Handler (function invoked during signal acquisition, being essential to ensure the 
         // communication between our C++ API and the Unity project.
-        bool CallbackHandler(int nSeq, IntPtr data, int dataLength)
+        bool CallbackHandler(int nSeq, int[] data, int dataLength)
         {
             // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
             lock (MultiThreadString)
             {
+                //Console.WriteLine("nSeq_: " + nSeq.ToString() + " data_: " + data[0].ToString());
                 // Store data in a string format (sharable variable).
                 MultiThreadString += "#";
-
-                // Convert our data pointer to an array format.
-                int[] dataArray = new int[dataLength];
-                Marshal.Copy(data, dataArray, 0, dataLength);
 
                 // The resulting dataArray will have in each entry the sampled value of the respective channel.
                 // Samples are organized in a sequential way, so if channels 1 and 4 are active it means that
                 // data[0] will contain the sample value of channel 1 while data[1] is the sample collected on channel 4.
-                for (int i = 0; i < dataArray.Length; i++)
+                for (int i = 0; i < data.Length; i++)
                 {
-                    MultiThreadString += dataArray[i].ToString() + "&";
+                    MultiThreadString += data[i].ToString() + "&";
                 }
             }
             return true;
@@ -205,6 +202,8 @@ namespace Assets.Scripts
         // Method invoked when the application was closed.
         void OnApplicationQuit()
         {
+            // Disconnect from device.
+            PluxDevManager.DisconnectPluxDev();
             Debug.Log("Application ending after " + Time.time + " seconds");
         }
 
@@ -285,6 +284,10 @@ namespace Assets.Scripts
                 // Change the color and text of "Connect" button.
                 if (ConnectText.text == "Connect")
                 {
+                    // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
+                    // samples as inputs.
+                    PluxDevManager.SetCallbackHandler(CallbackHandler);
+
                     // Get the selected device.
                     string selectedDevice = this.ListDevices[DeviceDropdown.value];
 
@@ -467,10 +470,6 @@ namespace Assets.Scripts
         // Function invoked during the onClick event of "StartButton".
         public void StartButtonFunction()
         {
-            // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
-            // samples as inputs.
-            PluxDevManager.SetCallbackHandler(CallbackHandler);
-
             // Get Device Configuration input values.
             SamplingRate = Int32.Parse(SamplingRateInput.text);
             int resolution = Int32.Parse(ResolutionDropDownOptions[ResolutionDropdown.value]);
