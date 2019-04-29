@@ -72,7 +72,7 @@ This mac-address should be inserted in a string format with the following struct
 
 Opposing to [PluxDev](#PluxDev), this method is very useful when you want to safely cut the connection between PLUX devices and computer. Behaves like an object destructor.
 ```csharp
-void DisconnectPluxDev(string macAddress)
+void DisconnectPluxDev()
 ```
 
 ### Description
@@ -146,7 +146,7 @@ The main difference on the inputs of this function in comparison with `StartAcqu
 
 Class method used to interrupt the real-time communication loop triggered by `StartAcquisitionUnity()`, `StartAcquisitionByNbrUnity()` or `StartAcquisitionMuscleBanUnity()` methods.
 ```csharp
-void StopAcquisitionUnity()
+bool StopAcquisitionUnity(int forceStop=0)
 ```
 
 ### Description
@@ -156,7 +156,11 @@ With `StopAcquisitionUnity()` function, first of all, the communication loop is 
 
 ### Parameters
 
-*Function without input parameters*
++	**forceStop** `int`: Integer code identifying the cause of acquisition stop (>= 0 | manually invoked by the user; -1 | device turned off; -2 | communication timeout exceeded).
+
+### Returned Values
+
+A boolean flag is returned identifying when the stop event was forced (**true**) or manually invoked by the user (**false**).
 
 ## GetDetectableDevicesUnity
 
