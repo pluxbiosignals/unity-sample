@@ -1,0 +1,14 @@
+{
+    "name": "ScriptsAssembly",
+    "references": [
+        "ExternalPackages"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": []
+}
