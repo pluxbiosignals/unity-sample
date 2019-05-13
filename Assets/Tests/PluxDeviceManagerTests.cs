@@ -23,7 +23,7 @@ namespace Tests
                 if (devices.Count <= 0)
                     Assert.Fail("Can't run tests without a device to connect to");
 
-                deviceMacAddr = devices[0];
+                deviceMacAddr = devices[0].Remove(0, 3);
             }
         }
 
