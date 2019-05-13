@@ -75,8 +75,8 @@ public class PluxDeviceManager
             {
                 StopAcquisitionUnity();
             }
-            DisconnectPluxDevUnity();
         }
+        DisconnectPluxDevUnity();
     }
 
     // Class method used to Start a Real-Time acquisition:
