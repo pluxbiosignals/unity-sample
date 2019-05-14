@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Timers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -73,6 +74,10 @@ namespace Assets.Scripts
         public List<string> ResolutionDropDownOptions = new List<string>() {"8", "16"};
         public int VisualizationChannel = -1;
         public int SamplingRate;
+        public int WindowInMemorySize;
+        public bool UpdatePlotFlag = false;
+
+        private IncrementCounter communicationCounter;
 
 
         // Awake is called when the script instance is being loaded.
@@ -100,6 +105,16 @@ namespace Assets.Scripts
             GraphContainer = graphVisual.GetGraphContainer();
             GraphZone = new WindowGraph(GraphContainer, graphVisual);
             GraphZone.ShowGraph(new List<int>() { 0 }, graphVisual, -1, (int _i) => "" + (_i), (float _f) => Mathf.RoundToInt(_f) + "k");
+
+            // Test elements.
+            communicationCounter = new IncrementCounter();
+
+            // Create a timer that controls the update of real-time plot.
+            System.Timers.Timer waitForPlotTimer = new System.Timers.Timer();
+            waitForPlotTimer.Elapsed += new ElapsedEventHandler(OnWaitingTimeEnds);
+            waitForPlotTimer.Interval = 1000; // 1 second.
+            waitForPlotTimer.Enabled = true;
+            waitForPlotTimer.AutoReset = true;
         }
 
         // Update function, being constantly invoked by Unity.
@@ -126,6 +141,12 @@ namespace Assets.Scripts
                             {
                                 tempInt = Int32.Parse(MultiThreadSubArray[j]);
                                 MultiThreadList[ActiveChannels[j]].Add(tempInt);
+
+                                // Check if list contains more than 20 seconds of data [Memory Release].
+                                if (MultiThreadList[ActiveChannels[j]].Count >= WindowInMemorySize)
+                                {
+                                    MultiThreadList[ActiveChannels[j]].RemoveAt(0);
+                                }
                             }
                         }
                     }
@@ -137,19 +158,6 @@ namespace Assets.Scripts
                     int lastCommunicatedData = MultiThreadList[ActiveChannels[0]][MultiThreadList[ActiveChannels[0]].Count - 1];
                     if (lastCommunicatedData >= 0)
                     {
-                        // Check if list contains more than 20 seconds of data [Memory Release].
-                        if (MultiThreadList[VisualizationChannel].Count > 2 * GraphWindSize)
-                        {
-                            for (int k = 1; k < MultiThreadList.Count; k++)
-                            {
-                                // Check if the current channel is an active channel.
-                                if (ActiveChannels.Contains(k))
-                                {
-                                    MultiThreadList[k] = MultiThreadList[k].GetRange(MultiThreadList[k].Count - 2 * GraphWindSize, 2 * GraphWindSize);
-                                }
-                            }
-                        }
-
                         // Creation of the first graphical representation of the results.
                         if (MultiThreadList[VisualizationChannel].Count >= 0)
                         {
@@ -169,11 +177,18 @@ namespace Assets.Scripts
                             // Update plot.
                             else if (FirstPlot == false)
                             {
-                                // Get the values linked with the last 10 seconds of information.
-                                MultiThreadSubList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
-                                for (int j = 0; j < MultiThreadSubList.Count; j++)
+                                // This if clause ensures that the real-time plot will only be updated every 1 second (Memory Restrictions).
+                                if (UpdatePlotFlag == true)
                                 {
-                                    GraphZone.UpdateValue(j, MultiThreadSubList[j]);
+                                    // Get the values linked with the last 10 seconds of information.
+                                    MultiThreadSubList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
+                                    for (int j = 0; j < MultiThreadSubList.Count; j++)
+                                    {
+                                        GraphZone.UpdateValue(j, MultiThreadSubList[j]);
+                                    }
+
+                                    // Reboot flag.
+                                    UpdatePlotFlag = false;
                                 }
                             }
                         }
@@ -208,6 +223,11 @@ namespace Assets.Scripts
 
                 // DEBUG
                 //Console.WriteLine("nSeq_: " + nSeq.ToString() + " data_: " + data[0].ToString());
+
+                lock (communicationCounter)
+                {
+                    communicationCounter.increment();
+                }
             }
             return true;
         }
@@ -492,6 +512,7 @@ namespace Assets.Scripts
 
             // Update graphical window size variable (the plotting zone should contain 10 seconds of data).
             GraphWindSize = SamplingRate * 10;
+            WindowInMemorySize = Convert.ToInt32(1.1 * GraphWindSize);
 
             // Number of Active Channels.
             int nbrChannels = 0;
@@ -581,6 +602,12 @@ namespace Assets.Scripts
         {
             // Invoke stop function from PluxDeviceManager.
             bool typeOfStop;
+
+            // Check how many samples were communicated by the device.
+            lock (communicationCounter)
+            {
+                Console.WriteLine("Number of Communications: " + communicationCounter.getCounter().ToString());
+            }
             typeOfStop = PluxDevManager.StopAcquisitionUnity(forceStop);
             
             // Disable StopButton.
@@ -704,6 +731,31 @@ namespace Assets.Scripts
             LastLenMultiThreadString = 0;
             GraphWindSize = -1;
             VisualizationChannel = -1;
+            UpdatePlotFlag = false;
+        }
+
+        public void OnWaitingTimeEnds(object source, ElapsedEventArgs e)
+        {
+            // Update flag, which will trigger the update of real-time plot.
+            UpdatePlotFlag = true;
+        }
+
+        // Auxiliary subclass that ensures the counting of the number of communicated samples between the device and the computer.
+        public class IncrementCounter
+        {
+            public int comCounter = 0;
+
+            // Increment the counter value.
+            public void increment()
+            {
+                comCounter++;
+            }
+
+            // Get the counter value.
+            public int getCounter()
+            {
+                return comCounter;
+            }
         }
 
     }
