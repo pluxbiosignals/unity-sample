@@ -35,10 +35,13 @@ namespace Assets.Scripts
         public Toggle CH6Toggle;
         public Toggle CH7Toggle;
         public Toggle CH8Toggle;
+        public Toggle BTHToggle;
+        public Toggle BLEToggle;
         public GameObject SamplingRateInfoPanel;
         public GameObject SelectedChannelPanel;
         public GameObject ChannelSelectioInfoPanel;
         public GameObject ConnectInfoPanel;
+        public GameObject BLESamplingRateInfoPanel;
         public GameObject BatteryIconUnknown;
         public GameObject BatteryIcon0;
         public GameObject BatteryIcon10;
@@ -76,6 +79,7 @@ namespace Assets.Scripts
         public int SamplingRate;
         public int WindowInMemorySize;
         public bool UpdatePlotFlag = false;
+        public string SelectedDevice = "";
 
         private IncrementCounter communicationCounter;
 
@@ -249,8 +253,25 @@ namespace Assets.Scripts
             try
             {
                 // List of available Devices.
-                this.ListDevices = PluxDevManager.GetDetectableDevicesUnity("BTH");
-                
+                List<string> listOfDomains = new List<string>();
+                if (BTHToggle.isOn)
+                {
+                    listOfDomains.Add("BTH");
+                }
+                if (BLEToggle.isOn)
+                {
+                    listOfDomains.Add("BLE");
+                }
+
+                this.ListDevices = PluxDevManager.GetDetectableDevicesUnity(listOfDomains);
+
+                // Info message for development purposes.
+                Console.WriteLine("Number of Detected Devices: " + this.ListDevices.Count);
+                for (int i = 0; i < this.ListDevices.Count; i++)
+                {
+                    Console.WriteLine("Device--> " + this.ListDevices[i]);
+                }
+
                 // Enable Dropdown if the list of devices is not empty.
                 if (this.ListDevices.Count != 0)
                 {
@@ -262,7 +283,7 @@ namespace Assets.Scripts
                     dropDevices.AddRange(this.ListDevices);
 
                     // A check into the list of devices.
-                    dropDevices = dropDevices.GetRange(0, dropDevices.Count - 1);
+                    dropDevices = dropDevices.GetRange(0, dropDevices.Count);
                     for (int i = dropDevices.Count - 1; i >= 0; i--)
                     {
                         // Accept only strings containing "BTH" or "BLE" substrings "flagging" a PLUX Bluetooth device.
@@ -322,12 +343,13 @@ namespace Assets.Scripts
                     PluxDevManager.SetCallbackHandler(CallbackHandler);
 
                     // Get the selected device.
-                    string selectedDevice = this.ListDevices[DeviceDropdown.value];
+                    this.SelectedDevice = this.ListDevices[DeviceDropdown.value];
 
                     // Connection with the device.
-                    Debug.Log("Trying to establish a connection with device " + selectedDevice);
-                    PluxDevManager.PluxDev(selectedDevice);
-                    Debug.Log("Connection with device " + selectedDevice + " established with success!");
+                    Debug.Log("Trying to establish a connection with device " + this.SelectedDevice);
+                    Console.WriteLine("Selected Device: " + this.SelectedDevice);
+                    PluxDevManager.PluxDev(this.SelectedDevice);
+                    Debug.Log("Connection with device " + this.SelectedDevice + " established with success!");
 
                     ConnectText.text = "Disconnect";
                     GreenFlag.SetActive(true);
@@ -343,6 +365,12 @@ namespace Assets.Scripts
                     if (devType == "MuscleBAN BE Plux")
                     {
                         CH1Toggle.interactable = true;
+
+                        //Clear the old options of the Dropdown menu
+                        ResolutionDropdown.ClearOptions();
+
+                        //Add the options created in the List above
+                        ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
                     }
                     else if (devType == "BITalino")
                     {
@@ -369,11 +397,23 @@ namespace Assets.Scripts
                         CH6Toggle.interactable = true;
                         CH7Toggle.interactable = true;
                         CH8Toggle.interactable = true;
+
+                        //Clear the old options of the Dropdown menu
+                        ResolutionDropdown.ClearOptions();
+
+                        //Add the options created in the List above
+                        ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
                     }
                     else if (devType == "OpenBANPlux")
                     {
                         CH1Toggle.interactable = true;
                         CH2Toggle.interactable = true;
+
+                        //Clear the old options of the Dropdown menu
+                        ResolutionDropdown.ClearOptions();
+
+                        //Add the options created in the List above
+                        ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
                     }
                     else
                     {
@@ -624,6 +664,9 @@ namespace Assets.Scripts
 
             // Disconnect device if a forced stop occurred.
             ConnectButtonFunction(typeOfStop);
+
+            // Hide info message.
+            BLESamplingRateInfoPanel.SetActive(false);
         }
 
         // Function invoked during the onClick event of the About Button.
@@ -657,6 +700,47 @@ namespace Assets.Scripts
                     // Hide object after 5 seconds.
                     StartCoroutine(RemoveAfterSeconds(5, SamplingRateInfoPanel));
                 }
+                // Check if we are dealing with BLE device. If so, when more than one channel is active the maximum sampling rate will be 100 Hz.
+                else if (Int32.Parse(SamplingRateInput.text) > 100 && this.SelectedDevice.Contains("BLE") && GetNbrActiveToggle() > 1)
+                {
+                    // Force sampling rate to acquire the maximum value.
+                    SamplingRate = 100;
+                    SamplingRateInput.text = "100";
+
+                    // Present info message.
+                    BLESamplingRateInfoPanel.SetActive(true);
+
+                    // Hide object after 5 seconds.
+                    StartCoroutine(RemoveAfterSeconds(5, BLESamplingRateInfoPanel));
+                }
+            }
+        }
+
+        // Function invoked during the onValueChanged event of the Toggle Button Inputs.
+        public void ToogleButtonOnChangeFunction()
+        {
+            if (Int32.Parse(SamplingRateInput.text) > 100 && this.SelectedDevice.Contains("BLE") && GetNbrActiveToggle() > 1)
+            {
+                // Force sampling rate to acquire the maximum value.
+                SamplingRate = 100;
+                SamplingRateInput.text = "100";
+
+                // Present info message.
+                BLESamplingRateInfoPanel.SetActive(true);
+
+                // Hide object after 5 seconds.
+                StartCoroutine(RemoveAfterSeconds(5, BLESamplingRateInfoPanel));
+            }
+        }
+
+        // Function invoked during the onValueChanged event of the Bluetooth Toggle Button Inputs.
+        public void BTToogleButtonOnChangeFunction(int btNbr)
+        {
+            Toggle[] toggleArray = new[] {BTHToggle, BLEToggle};
+            if (!BTHToggle.isOn && !BLEToggle.isOn)
+            {
+                // Ignore the change command and keep the button active.
+                toggleArray[btNbr].isOn = !toggleArray[btNbr].isOn;
             }
         }
 
@@ -758,5 +842,21 @@ namespace Assets.Scripts
             }
         }
 
+        // Get the number of active toggle buttons.
+        private int GetNbrActiveToggle()
+        {
+            // Number of Active Channels.
+            int nbrChannels = 0;
+            Toggle[] toggleArray = new Toggle[]{CH1Toggle, CH2Toggle, CH3Toggle, CH4Toggle, CH5Toggle, CH6Toggle, CH7Toggle, CH8Toggle};
+            for (int i = 0; i < toggleArray.Length; i++)
+            {
+                if (toggleArray[i].isOn == true)
+                {
+                    nbrChannels++;
+                }
+            }
+
+            return nbrChannels;
+        }
     }
 }

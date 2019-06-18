@@ -37,6 +37,8 @@ public class PluxDeviceManager
     [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDetectableDevices(string domain);
     [DllImport("plux_unity_interface")]
+    private static extern System.IntPtr GetAllDetectableDevices();
+    [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDeviceType();
 
     // Delegates (needed for callback purposes).
@@ -45,6 +47,7 @@ public class PluxDeviceManager
 
     // [Generic Variables]
     public Thread AcquisitionThread;
+    public bool DeviceConnected = false;
     public int SamplingRate;
     public string ActiveChannelsStr = "";
     public bool AcquisitionStopped = true;
@@ -63,7 +66,9 @@ public class PluxDeviceManager
     // macAddress -> Device unique identifier, i.e., mac-address.
     public void PluxDev(string macAddress)
     {
+        Console.WriteLine("Selected Device being received: " + macAddress);
         PluxDevUnity(macAddress);
+        DeviceConnected = true;
     }
 
     public void DisconnectPluxDev()
@@ -76,7 +81,13 @@ public class PluxDeviceManager
                 StopAcquisitionUnity();
             }
         }
-        DisconnectPluxDevUnity();
+
+        // Check if the device was previously been connected.
+        if (DeviceConnected)
+        {
+            DisconnectPluxDevUnity();
+            DeviceConnected = false;
+        }
     }
 
     // Class method used to Start a Real-Time acquisition:
@@ -286,24 +297,28 @@ public class PluxDeviceManager
     }
 
     // Class method intended to find the list of detectable devices through Bluetooth communication.
-    // domain -> String that defines which domain will be used while searching for PLUX devices 
-    //           [Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy; "USB" -> Through USB connection cable]
-    public List<string> GetDetectableDevicesUnity(string domain)
+    // domains -> Array of strings that defines which domains will be used while searching for PLUX devices 
+    //            [Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy; "USB" -> Through USB connection cable]
+    public List<string> GetDetectableDevicesUnity(List<string> domains)
     {
-        // List of available Devices.
-        System.IntPtr listDevicesBTH = GetDetectableDevices(domain);
-        List<System.IntPtr> listDevicesByType = new List<IntPtr>() { listDevicesBTH };
+        // Search for BLE and BTH devices.
         List<string> listDevices = new List<string>();
-
-        for (int k = 0; k < listDevicesByType.Count; k++)
+        for (int domainNbr = 0; domainNbr < domains.Count; domainNbr++)
         {
-            // Convert listDevices (in a String format) to an array.
-            string[] tempListDevices = Marshal.PtrToStringAnsi(listDevicesByType[k]).Split('&');
+            // List of available Devices.
+            System.IntPtr listDevicesByDomain = GetDetectableDevices(domains[domainNbr]);
+            List<System.IntPtr> listDevicesByType = new List<IntPtr>() { listDevicesByDomain };
 
-            // Add elements to the returnable list.
-            for (int i = 0; i < tempListDevices.Length; i++)
+            for (int k = 0; k < listDevicesByType.Count; k++)
             {
-                listDevices.Add(tempListDevices[i]);
+                // Convert listDevices (in a String format) to an array.
+                string[] tempListDevices = Marshal.PtrToStringAnsi(listDevicesByType[k]).Split('&');
+
+                // Add elements to the returnable list.
+                for (int i = 0; i < tempListDevices.Length - 1; i++)
+                {
+                    listDevices.Add(tempListDevices[i]);
+                }
             }
         }
         return listDevices;
