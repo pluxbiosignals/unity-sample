@@ -18,7 +18,8 @@ Some questions can be enlightened, such as:
 
 ## Limitations
 
-+	Currently, Bluetooth Low Energy (BLE) devices are not yet supported by the Sample APP, however, they can be accessed through the API.
++	Currently, Bluetooth Low Energy (BLE) devices are supported by the Sample APP, however, you should use the approved [**BLE dongle D 112**](https://plux.info/accessories/207-bitalino-proven-ble-dongle-810121502.html?search_query=ble+dongle&results=38).
++	There is still the need of catching and dealing with exceptions that were triggered on the C++ component (.dll Plugin). 
 
 ## How to Use It
 
@@ -176,7 +177,7 @@ In `GetDetectableDevicesUnity` an automatic split of the received string took pl
 
 ### Parameters
 
-+	**domains** `List\<string>`: A list containing the Bluetooth domains to be searched (**BTH** or **BLE**). Each domain inside the list will be used while searching for PLUX devices \[Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy]
++	**domains** `List<string>`: A list containing the Bluetooth domains to be searched (**BTH** or **BLE**). Each domain inside the list will be used while searching for PLUX devices \[Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy]
 
 ## SetCallbackHandler
 
