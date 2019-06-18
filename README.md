@@ -166,7 +166,7 @@ A boolean flag is returned identifying when the stop event was forced (**true**)
 
 Class method intended to find the list of detectable devices through Bluetooth communication.
 ```csharp
-List<string> GetDetectableDevicesUnity(string domain)
+List<string> GetDetectableDevicesUnity(List<string> domains)
 ```
 
 ### Description
@@ -176,7 +176,7 @@ In `GetDetectableDevicesUnity` an automatic split of the received string took pl
 
 ### Parameters
 
-+	**domain** `string`: String that defines which domain will be used while searching for PLUX devices \[Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy; "USB" -> Through USB connection cable]
++	**domains** `List\<string>`: A list containing the Bluetooth domains to be searched (**BTH** or **BLE**). Each domain inside the list will be used while searching for PLUX devices \[Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy]
 
 ## SetCallbackHandler
 
