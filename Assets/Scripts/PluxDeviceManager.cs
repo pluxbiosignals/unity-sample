@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Boo.Lang.Runtime;
 
 public class PluxDeviceManager
 {
@@ -40,10 +41,13 @@ public class PluxDeviceManager
     private static extern System.IntPtr GetAllDetectableDevices();
     [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDeviceType();
+    [DllImport("plux_unity_interface")]
+    private static extern void SetExceptionHandler(FPtrExceptions excHandler);
 
     // Delegates (needed for callback purposes).
     public delegate bool FPtr(int nSeq, IntPtr dataIn, int dataInSize);
     public delegate bool FPtrUnity(int nSeq, int[] dataIn, int dataInSize);
+    public delegate bool FPtrExceptions(int exceptionCode, string exceptionDescription);
 
     // [Generic Variables]
     public Thread AcquisitionThread;
@@ -67,6 +71,7 @@ public class PluxDeviceManager
     public void PluxDev(string macAddress)
     {
         Console.WriteLine("Selected Device being received: " + macAddress);
+        SetExceptionHandler(new FPtrExceptions(ExceptionHandler));
         PluxDevUnity(macAddress);
         DeviceConnected = true;
     }
@@ -232,8 +237,14 @@ public class PluxDeviceManager
         }
     }
 
+    // Callback responsible for receiving exceptions generated inside our .dll file (plugin).
+    private bool ExceptionHandler(int exceptionCode, string exceptionDescription)
+    {
+        throw new RuntimeException(exceptionCode.ToString() + " | " + exceptionDescription);
+    }
+
     // Class method used to interrupt the real-time communication loop.
-    private void InterruptAcquisitionUnity()
+        private void InterruptAcquisitionUnity()
     {
         InterruptAcquisition();
     }
@@ -301,6 +312,10 @@ public class PluxDeviceManager
     //            [Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy; "USB" -> Through USB connection cable]
     public List<string> GetDetectableDevicesUnity(List<string> domains)
     {
+        // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
+        // samples as inputs.
+        SetExceptionHandler(ExceptionHandler);
+
         // Search for BLE and BTH devices.
         List<string> listDevices = new List<string>();
         for (int domainNbr = 0; domainNbr < domains.Count; domainNbr++)

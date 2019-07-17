@@ -316,17 +316,14 @@ namespace Assets.Scripts
             }
             catch (Exception e)
             {
-                if (e is ExecutionEngineException || e is ArgumentException)
-                {
-                    // Show info message.
-                    ConnectInfoPanel.SetActive(true);
+                // Show info message.
+                ConnectInfoPanel.SetActive(true);
 
-                    // Hide object after 5 seconds.
-                    StartCoroutine(RemoveAfterSeconds(5, ConnectInfoPanel));
+                // Hide object after 5 seconds.
+                StartCoroutine(RemoveAfterSeconds(5, ConnectInfoPanel));
 
-                    // Disable Drop-down.
-                    DeviceDropdown.interactable = false;
-                }
+                // Disable Drop-down.
+                DeviceDropdown.interactable = false;
             }
         }
 
