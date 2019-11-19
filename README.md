@@ -16,6 +16,11 @@ Some questions can be enlightened, such as:
 
 +	Microsoft Windows \[32 and 64 bits]
 
+## Tested Script Runtime Versions
+
++	Microsoft .NET Framework 3.5
++	Microsoft .NET Framework 4.0
+
 ## Limitations
 
 +	Currently, Bluetooth Low Energy (BLE) devices are supported by the Sample APP, however, you should use the approved [**BLE dongle D 112**](https://plux.info/accessories/207-bitalino-proven-ble-dongle-810121502.html?search_query=ble+dongle&results=38).

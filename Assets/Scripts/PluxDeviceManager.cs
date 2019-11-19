@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Runtime.InteropServices;
 using System.Threading;
-using Boo.Lang.Runtime;
 
 public class PluxDeviceManager
 {
@@ -240,7 +239,7 @@ public class PluxDeviceManager
     // Callback responsible for receiving exceptions generated inside our .dll file (plugin).
     private bool ExceptionHandler(int exceptionCode, string exceptionDescription)
     {
-        throw new RuntimeException(exceptionCode.ToString() + " | " + exceptionDescription);
+        throw new Exception(exceptionCode.ToString() + " | " + exceptionDescription);
     }
 
     // Class method used to interrupt the real-time communication loop.
