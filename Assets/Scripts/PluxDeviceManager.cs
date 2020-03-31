@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Runtime.InteropServices;
 using System.Threading;
+//using Boo.Lang.Runtime;
 
 public class PluxDeviceManager
 {
@@ -15,11 +16,11 @@ public class PluxDeviceManager
     [DllImport("plux_unity_interface")]
     private static extern void DisconnectPluxDevUnity();
     [DllImport("plux_unity_interface")]
-    private static extern void StartAcquisitionByNbr(int samplingRate, int numberOfChannel, int resolution, FPtr callbackFunction);
+    private static extern void StartAcquisitionByNbr(int samplingRate, int numberOfChannel, int resolution);
     [DllImport("plux_unity_interface")]
-    private static extern void StartAcquisition(int samplingRate, string activeChannels, int resolution, FPtr callbackFunction);
+    private static extern void StartAcquisition(int samplingRate, string activeChannels, int resolution);
     [DllImport("plux_unity_interface")]
-    private static extern void StartAcquisitionMuscleBan(int samplingRate, string activeChannels, int resolution, int freqDivisor, FPtr callbackFunction);
+    private static extern void StartAcquisitionMuscleBan(int samplingRate, string activeChannels, int resolution, int freqDivisor);
     [DllImport("plux_unity_interface")]
     private static extern void StartLoop();
     [DllImport("plux_unity_interface")]
@@ -41,20 +42,37 @@ public class PluxDeviceManager
     [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDeviceType();
     [DllImport("plux_unity_interface")]
-    private static extern void SetExceptionHandler(FPtrExceptions excHandler);
+    private static extern void SetCommunicationHandler(FPtrUnity handlerFunction);
 
     // Delegates (needed for callback purposes).
-    public delegate bool FPtr(int nSeq, IntPtr dataIn, int dataInSize);
-    public delegate bool FPtrUnity(int nSeq, int[] dataIn, int dataInSize);
-    public delegate bool FPtrExceptions(int exceptionCode, string exceptionDescription);
+    public delegate bool FPtr(int nSeq, int[] dataIn, int dataInSize);
+    public delegate bool FPtrUnity(int exceptionCode, string exceptionDescription, int nSeq, IntPtr dataIn, int dataInSize);
+    //public delegate bool FPtrExceptions(int exceptionCode, string exceptionDescription);
 
     // [Generic Variables]
     public Thread AcquisitionThread;
+    public Thread MainThread;
     public bool DeviceConnected = false;
     public int SamplingRate;
     public string ActiveChannelsStr = "";
     public bool AcquisitionStopped = true;
     private static CallbackManager callbackPointer;
+    //private BufferAcqSamples BufferedSamples = new BufferAcqSamples();
+    private static Lazy<BufferAcqSamples> LazyObject = null;
+    private BufferAcqSamples BufferedSamples;
+    private volatile object DoubleCheckLock = null;
+    private int currThreadNumber = 0;
+
+    // Contructor.
+    public PluxDeviceManager()
+    {
+        LazyObject = new Lazy<BufferAcqSamples>(InitBufferedSamplesObject);
+
+        // exceptionPointer -> Pointer to the callback function that will be used to send/communicate information about exceptions generated inside this .dll
+        //                     The exception code and description will be sent to Unity where an appropriate action can take place.
+        FPtrUnity dllCommunicationHandler = new FPtrUnity(DllCommunicationHandler);
+        SetCommunicationHandler(dllCommunicationHandler);
+    }
 
     // [Redefinition of the imported methods ensuring that they are acessible on other scripts]
 
@@ -70,9 +88,12 @@ public class PluxDeviceManager
     public void PluxDev(string macAddress)
     {
         Console.WriteLine("Selected Device being received: " + macAddress);
-        SetExceptionHandler(new FPtrExceptions(ExceptionHandler));
         PluxDevUnity(macAddress);
         DeviceConnected = true;
+
+        // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
+        // samples as inputs.
+        SetCallbackHandler(CallbackHandler);
     }
 
     public void DisconnectPluxDev()
@@ -82,6 +103,7 @@ public class PluxDeviceManager
             Console.WriteLine("Thread Unity Forced to Close");
             if (AcquisitionStopped == false)
             {
+                Console.WriteLine("Forcing the acquisition stop");
                 StopAcquisitionUnity();
             }
         }
@@ -105,15 +127,6 @@ public class PluxDeviceManager
     //                     So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
     public void StartAcquisitionUnity(int samplingRate, List<int> listChannels, int resolution)
     {
-        // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
-        //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
-        //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        FPtr callbackPointerUnity = new FPtr(CallbackHandlerUnity);
-        if (callbackPointerUnity == null)
-        {
-            return;
-        }
-
         // Conversion of List of active channels to a string format.
         for (int i = 0; i < 8; i++)
         {
@@ -127,11 +140,25 @@ public class PluxDeviceManager
             }
         }
 
-        // Start of acquisition.
-        StartAcquisition(samplingRate, ActiveChannelsStr, resolution, callbackPointerUnity);
+        // Reboot BufferedSamples object.
+        BufferAcqSamples bufferedSamples = LazyObject.Value;
+        lock (bufferedSamples)
+        {
+            bufferedSamples.reinitialise();
+        }
 
-        // Start Communication Loop.
-        StartLoopUnity();
+        if (!bufferedSamples.getUncaughtExceptionState())
+        {
+            // Start of acquisition.
+            StartAcquisition(samplingRate, ActiveChannelsStr, resolution);
+
+            // Start Communication Loop.
+            StartLoopUnity();
+        }
+        else
+        {
+            throw new Exception("Unable to start a real-time acquisition. It is probable that the connection between the computer and the PLUX device was broke");
+        }
 
         // Update global flag.
         AcquisitionStopped = false;
@@ -147,17 +174,8 @@ public class PluxDeviceManager
     //               compared with the ideal real case scenario.
     public void StartAcquisitionByNbrUnity(int samplingRate, int numberOfChannels, int resolution)
     {
-        // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
-        //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
-        //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        FPtr callbackPointerUnity = new FPtr(CallbackHandlerUnity);
-        if (callbackPointerUnity == null)
-        {
-            return;
-        }
-
         // Start of the real-time acquisition.
-        StartAcquisitionByNbr(samplingRate, numberOfChannels, resolution, callbackPointerUnity);
+        StartAcquisitionByNbr(samplingRate, numberOfChannels, resolution);
 
         // Start Communication Loop.
         StartLoopUnity();
@@ -176,15 +194,6 @@ public class PluxDeviceManager
     //                will trigger the communication of a single sample (through the communication loop).
     public void StartAcquisitionMuscleBanUnity(int samplingRate, List<int> listChannels, int resolution, int freqDivisor)
     {
-        // callbackPointer -> Pointer to the callback function that will be used to send/communicate the data acquired by PLUX devices, i.e., this callback 
-        //                    function will be invoked during the data acquisition process and through his inputs the acquired data will become accessible.
-        //                    So, for receiving data on a third-party application it will only be necessary to redefine this callbackFunction.
-        FPtr callbackPointerUnity = new FPtr(CallbackHandlerUnity);
-        if (callbackPointerUnity == null)
-        {
-            return;
-        }
-
         // Conversion of List of active channels to a string format.
         for (int i = 0; i < 8; i++)
         {
@@ -199,7 +208,7 @@ public class PluxDeviceManager
         }
 
         // Start of acquisition.
-        StartAcquisitionMuscleBan(samplingRate, ActiveChannelsStr, resolution, freqDivisor, callbackPointerUnity);
+        StartAcquisitionMuscleBan(samplingRate, ActiveChannelsStr, resolution, freqDivisor);
         
         // Start Communication Loop.
         StartLoopUnity();
@@ -211,39 +220,167 @@ public class PluxDeviceManager
     // Trigger the start of the communication loop (between PLUX device and computer).
     private void StartLoopUnity()
     {
+        // Storage of a reference to the main thread.
+        if (MainThread == null)
+        {
+            MainThread = Thread.CurrentThread;
+            MainThread.Name = "MAIN";
+        }
+
         // Creation of new thread to manage the communication loop.
         AcquisitionThread = new Thread(StartLoop);
-        AcquisitionThread.Name = "ACQUISITION";
+        AcquisitionThread.Name = "ACQUISITION_" + currThreadNumber;
+        currThreadNumber++;
         AcquisitionThread.Start();
         Debug.Log("Acquisition Thread Started with Success !");
     }
 
+    // Getter method used to request a new package of data.
+    // rebootMemory -> When true the stored data inside BufferedSamples object is re-initialized.
+    public int[][] GetPackageOfData(bool rebootMemory)
+    {
+        // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
+        BufferAcqSamples bufferedSamples = LazyObject.Value;
+        lock (bufferedSamples)
+        {
+            if (!bufferedSamples.getUncaughtExceptionState())
+            {
+                return bufferedSamples.getPackages(rebootMemory);
+            }
+            else
+            {
+                bufferedSamples.deactUncaughtException();
+                throw new ExternalException("An exception with unknown origin was raised, but it is not fatal. It is probable that the device connection was lost...");
+            }
+        }
+    }
+
+    // Getter method used to request a new package of data.
+    // channelNbr -> Number of the channel under analysis.
+    // activeChannelsMask -> List containing set of active channels.
+    // rebootMemory -> When true the stored data inside BufferedSamples object is re-initialized.
+    public int[] GetPackageOfData(int channelNbr, List<int> activeChannelsMask, bool rebootMemory)
+    {
+        // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
+        BufferAcqSamples bufferedSamples = LazyObject.Value;
+        lock (bufferedSamples)
+        {
+            if (!bufferedSamples.getUncaughtExceptionState())
+            {
+                // Identification of the current channel index.
+                int auxCounter = activeChannelsMask.IndexOf(channelNbr);
+
+                // Initialisation of local variables.
+                int[][] fullData = bufferedSamples.getPackages(rebootMemory);
+
+                // Selection of data inside the desired channel.
+                if (fullData != null && fullData[0] != null)
+                {
+                    int[] dataInChannel = new int[fullData.Length];
+                    for (int i = 0; i < dataInChannel.Length; i++)
+                    {
+                        try
+                        {
+                            dataInChannel[i] = fullData[i][auxCounter];
+                        }
+                        catch (Exception exc)
+                        {
+                            bufferedSamples.reboot();
+                            DoubleCheckLock = null;
+                            return new int[0];
+                        }
+                    }
+
+                    return dataInChannel;
+                }
+
+                return new int[0];
+            }
+            else
+            {
+                bufferedSamples.deactUncaughtException();
+                throw new ExternalException("An exception with unknown origin was raised, but it is not fatal. It is probable that the device connection was lost...");
+            }
+        }
+    }
+
     // Callback function responsible for receiving the acquired data samples from the communication loop started by StartLoopUnity().
-    private bool CallbackHandlerUnity(int nSeq, IntPtr dataIn, int dataInSize)
+    private bool DllCommunicationHandler(int exceptionCode, string exceptionDescription, int nSeq, IntPtr data, int dataInSize)
     {
         lock (callbackPointer)
         {
-            // Convert our data pointer to an array format.
-            int[] dataArray = new int[dataInSize];
-            Marshal.Copy(dataIn, dataArray, 0, dataInSize);
+            try
+            {
+                // DEBUG
+                //Console.WriteLine("Monitoring: " + nSeq + "|" + data + "|" + dataInSize);
 
-            // DEBUG
-            //Console.WriteLine("nSeq: " + nSeq.ToString() + " data: " + dataArray[0].ToString());
+                // Check if no exception were raised.
+                if (exceptionCode == 0)
+                {
+                    try
+                    {
+                        // Convert our data pointer to an array format.
+                        int[] dataArray = new int[dataInSize];
+                        Marshal.Copy(data, dataArray, 0, dataInSize);
 
-            callbackPointer.GetCallbackRef()(nSeq, dataArray, dataInSize);
+                        callbackPointer.GetCallbackRef()(nSeq , dataArray, dataInSize);
+                    }
+                    catch (OutOfMemoryException exception)
+                    {
+                        BufferAcqSamples bufferedSamples = LazyObject.Value;
+                        lock (bufferedSamples)
+                        {
+                            bufferedSamples.actUncaughtException();
+                            Debug.Log("Executing preventive approaches to deal with a potential OutOfMemoryException:\n" + exception.StackTrace);
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.Log("A new C++ exception was found...");
+                    // Check if the current exception could be an uncaught one.
+                    BufferAcqSamples bufferedSamples = LazyObject.Value;
+                    lock (bufferedSamples)
+                    {
+                        // Activate flag in BufferedSamples object stating that an uncaught exception exists.
+                        bufferedSamples.actUncaughtException();
+                    }
+
+                    throw new Exception(exceptionCode.ToString() + " | " + exceptionDescription);
+                }
+            }
+            catch (OutOfMemoryException exception)
+            {
+                BufferAcqSamples bufferedSamples = LazyObject.Value;
+                lock (bufferedSamples)
+                {
+                    bufferedSamples.actUncaughtException();
+                    Debug.Log("Executing preventive approaches to deal with a potential OutOfMemoryException:\n" + exception.StackTrace);
+                }
+            }
 
             return true;
         }
     }
 
-    // Callback responsible for receiving exceptions generated inside our .dll file (plugin).
-    private bool ExceptionHandler(int exceptionCode, string exceptionDescription)
+    // Callback Handler (function invoked during signal acquisition, being essential to ensure the 
+    // communication between our C++ API and the Unity project.
+    bool CallbackHandler(int nSeq, int[] data, int dataLength)
     {
-        throw new Exception(exceptionCode.ToString() + " | " + exceptionDescription);
+        // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
+        BufferAcqSamples bufferedSamples = LazyObject.Value;
+        lock (bufferedSamples)
+        {
+            // Storage of the received data samples.
+            // Samples are organized in a sequential way, so if channels 1 and 4 are active it means that
+            // data[0] will contain the sample value of channel 1 while data[1] is the sample collected on channel 4.
+            bufferedSamples.addSamples(nSeq, data);
+        }
+        return true;
     }
 
     // Class method used to interrupt the real-time communication loop.
-        private void InterruptAcquisitionUnity()
+    private void InterruptAcquisitionUnity()
     {
         InterruptAcquisition();
     }
@@ -255,53 +392,61 @@ public class PluxDeviceManager
     {
         // Returned variable.
         bool forceFlag = false;
-        
+
         // Check if the StopButtonFunction was invoked by the user (button click) or after a Disconnect Event was triggered.
-        if (forceStop >= 0)
+        if (AcquisitionThread != null)
         {
-            // Interrupt real-time communication loop.
-            Console.WriteLine("Communication Flag (Before Interrupt): " + GetCommunicationFlag());
-            InterruptAcquisition();
-
-            // Wait for the communication of the flag stating the end of the communication loop.
-            bool communicationFlag = GetCommunicationFlag();
-            Console.WriteLine("Communication Flag (After Interrupt): " + GetCommunicationFlag());
-            while (communicationFlag == true)
+            if (forceStop >= 0)
             {
-                communicationFlag = GetCommunicationFlag();
+                // Interrupt real-time communication loop.
+                Console.WriteLine("Communication Flag (Before Interrupt): " + GetCommunicationFlag());
+                InterruptAcquisition();
+
+                // Wait for the communication of the flag stating the end of the communication loop.
+                bool communicationFlag = GetCommunicationFlag();
+                Console.WriteLine("Communication Flag (After Interrupt): " + GetCommunicationFlag());
+                while (communicationFlag == true)
+                {
+                    communicationFlag = GetCommunicationFlag();
+                }
+
+                Console.WriteLine("Communication Flag (After Loop): " + GetCommunicationFlag());
+
+                // Stop acquisition.
+                StopAcquisition();
+                Console.WriteLine("Thread State: " + AcquisitionThread.ThreadState);
+                AcquisitionThread.Abort();
+                Console.WriteLine("Thread State (After Aborting): " + AcquisitionThread.ThreadState);
             }
-            Console.WriteLine("Communication Flag (After Loop): " + GetCommunicationFlag());
-
-            // Stop acquisition.
-            StopAcquisition();
-            Console.WriteLine("Thread State: " + AcquisitionThread.ThreadState);
-            AcquisitionThread.Abort();
-            Console.WriteLine("Thread State (After Aborting): " + AcquisitionThread.ThreadState);
-        }
-        else
-        {
-            // Close Thread.
-            Console.WriteLine("Thread State: " + AcquisitionThread.ThreadState);
-            AcquisitionThread.Abort();
-            Console.WriteLine("Thread State (After Aborting): " + AcquisitionThread.ThreadState);
-
-            // Disconnect device if a forced stop occurred.
-            if (forceStop == -1)
+            else
             {
-                //DisconnectPluxDev();
+                // Close Thread.
+                Console.WriteLine("Thread State: " + AcquisitionThread.ThreadState + "_" + Thread.CurrentThread.Name);
+                AcquisitionThread.Abort();
+                Console.WriteLine("Thread State (After Aborting): " + AcquisitionThread.ThreadState);
+
+                // Disconnect device if a forced stop occurred.
+                if (forceStop == -1)
+                {
+                    //DisconnectPluxDev();
+                }
+
+                // Update forceFlag.
+                forceFlag = true;
+
+                // Debug Message.
+                Debug.Log("Real-Time Data Acquisition stopped due to the lost of connection with PLUX Device.");
             }
 
-            // Update forceFlag.
-            forceFlag = true;
+            // Reboot variables.
+            ActiveChannelsStr = "";
 
-            // Debug Message.
-            Debug.Log("Real-Time Data Acquisition stopped due to the lost of connection with PLUX Device.");
+            // Update global flag.
+            AcquisitionStopped = true;
+
+            // Reboot AcquisitionThread
+            AcquisitionThread = null;
         }
-        // Reboot variables.
-        ActiveChannelsStr = "";
-
-        // Update global flag.
-        AcquisitionStopped = true;
 
         return forceFlag;
     }
@@ -313,7 +458,8 @@ public class PluxDeviceManager
     {
         // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
         // samples as inputs.
-        SetExceptionHandler(ExceptionHandler);
+        //SetExceptionHandler(ExceptionHandler);
+
 
         // Search for BLE and BTH devices.
         List<string> listDevices = new List<string>();
@@ -321,7 +467,7 @@ public class PluxDeviceManager
         {
             // List of available Devices.
             System.IntPtr listDevicesByDomain = GetDetectableDevices(domains[domainNbr]);
-            List<System.IntPtr> listDevicesByType = new List<IntPtr>() { listDevicesByDomain };
+            List<System.IntPtr> listDevicesByType = new List<IntPtr>() {listDevicesByDomain};
 
             for (int k = 0; k < listDevicesByType.Count; k++)
             {
@@ -335,12 +481,13 @@ public class PluxDeviceManager
                 }
             }
         }
+
         return listDevices;
     }
 
     // Definition of the callback function responsible for managing the acquired data (which is defined on users Unity script).
     // callbackHandler -> A function pointer to the callback that will receive the acquired data samples on the Unity side.
-    public bool SetCallbackHandler(FPtrUnity callbackHandler)
+    public bool SetCallbackHandler(FPtr callbackHandler)
     {
         callbackPointer = new CallbackManager(callbackHandler);
         return true;
@@ -373,15 +520,189 @@ public class PluxDeviceManager
     // Class that manages the reference to callbackPointer.
     public class CallbackManager
     {
-        public FPtrUnity callbackReference;
-        public CallbackManager(FPtrUnity callbackPointer)
+        public FPtr callbackReference;
+        public CallbackManager(FPtr callbackPointer)
         {
             callbackReference = callbackPointer;
         }
 
-        public FPtrUnity GetCallbackRef()
+        public FPtr GetCallbackRef()
         {
             return callbackReference;
         }
+    }
+
+    // Auxiliary subclass that works as a buffer of received samples.
+    public class BufferAcqSamples
+    {
+        private int comCounter = 0;
+        private int[][] packagesOfData;
+        private int maxNbrSamples = 10000;
+        private bool rebootOnNextPackage = false;
+        private bool uncaugthException = false;
+        private int lastNSeq = -1;
+
+        // Class constructor.
+        public BufferAcqSamples()
+        {
+            packagesOfData = new int[maxNbrSamples][]; // Stores 10 seconds of data in data acquisitions of 1000 Hz sampling rate.
+        }
+
+        // An important method that ensures the reinitialisation of the class variables.
+        public void reinitialise()
+        {
+            comCounter = 0;
+            packagesOfData = new int[maxNbrSamples][];
+            rebootOnNextPackage = false;
+            uncaugthException = false;
+            lastNSeq = -1;
+        }
+
+        // Add samples to the buffer.
+        // nSeq -> Sequence number that univocally identifies the package.
+        // newPackage -> Package of data to be added to the memory data structure of this object.
+        public void addSamples(int nSeq, int[] newPackage)
+        {  
+            // Check if the new package of data is the valid one, i.e., if it is the one immediately after the last received package.
+            if (nSeq <= lastNSeq || nSeq > lastNSeq + 1)
+            {
+                actUncaughtException();
+            }
+            else
+            {
+                lastNSeq = nSeq;
+            }
+            
+            // Reboot buffer if the controlling flag is true.
+            if (rebootOnNextPackage)
+            {
+                // Reboot flag.
+                rebootOnNextPackage = false;
+
+                // Re-Initialise array.
+                packagesOfData = new int[maxNbrSamples][];
+                restart();
+            }
+
+            // Check if the maximum capacity of the buffer was reached.
+            if (comCounter == maxNbrSamples)
+            {
+                // Shift data.
+                Array.Copy(packagesOfData, 1, packagesOfData, 0, packagesOfData.Length - 1);
+
+                // Decrement counter.
+                decrement();
+            }
+            packagesOfData[comCounter] = newPackage;
+
+            // Update counter.
+            increment();
+        }
+
+        // Activate UncaughtException flag.
+        public void actUncaughtException()
+        {
+            uncaugthException = true;
+        }
+
+        // Deactivate UncaughtException flag.
+        public void deactUncaughtException()
+        {
+            uncaugthException = false;
+        }
+
+        // Increment the counter value.
+        private void increment()
+        {
+            comCounter++;
+        }
+
+        // Decrement the counter value.
+        private void decrement()
+        {
+            comCounter--;
+        }
+           
+        // Method used to reboot the object memory.
+        public void reboot()
+        {
+            // Reboot flag.
+            rebootOnNextPackage = false;
+
+            // Re-Initialise array.
+            packagesOfData = new int[maxNbrSamples][];
+        }
+
+        // Restart counter.
+        private void restart()
+        {
+            comCounter = 0;
+        }
+
+        // Get the counter value.
+        public int getCounter()
+        {
+            return comCounter;
+        }
+
+        // Get available packages of data.
+        // rebootMemory -> When true the stored data inside BufferedSamples object is re-initialized.
+        public int[][] getPackages(bool rebootMemory)
+        {
+            // Check if the array is not empty.
+            if (packagesOfData[0] == null)
+            {
+                return null;
+            }
+            // Send the filled section of the array.
+            else if (comCounter != maxNbrSamples)
+            {
+                int[][] tempArray = new int[comCounter][];
+                Array.Copy(packagesOfData, 0, tempArray, 0, comCounter);
+
+                // Update flag.
+                rebootOnNextPackage = rebootMemory;
+
+                return tempArray;
+            }
+            else
+            {
+                // Update flag.
+                rebootOnNextPackage = rebootMemory;
+
+                return packagesOfData;
+            }
+        }
+
+        // Get Uncaught Exception state.
+        public bool getUncaughtExceptionState()
+        {
+            return uncaugthException;
+        }
+    }
+
+    // Auxiliary method that ensures a secure lock.
+    // https://www.pluralsight.com/guides/lock-statement-best-practices
+    private object InitializeIfNeeded()
+    {
+        if (DoubleCheckLock == null)
+        {
+            lock (BufferedSamples)
+            {
+                if (DoubleCheckLock == null)
+                {
+                    DoubleCheckLock = true;
+                }
+            }
+        }
+
+        return DoubleCheckLock;
+    }
+
+    // Factory for our Multi-Thread lazy object.
+    static BufferAcqSamples InitBufferedSamplesObject()
+    {
+        BufferAcqSamples lazyComponent = new BufferAcqSamples();
+        return lazyComponent;
     }
 }

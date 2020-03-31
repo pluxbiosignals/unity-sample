@@ -152,53 +152,43 @@ public class WindowGraph : MonoBehaviour
     }
 
     // Update a single value of our plot.
-    public void UpdateValue(int index, int value)
+    public void UpdateValue(List<int> newValues)
     {
         // Definition of variables.
         float graphHeight = GraphContainer.sizeDelta.y;
         float graphWidth = GraphContainer.sizeDelta.x;
         float yMinimumBefore, yMaximumBefore;
         CalculateYScale(out yMinimumBefore, out yMaximumBefore);
-        valueList[index] = value;
+
+        // Shift array.
+        valueList = valueList.GetRange(newValues.Count, valueList.Count - newValues.Count);
+        valueList.AddRange(newValues);
 
         // After update.
         float yMinimum, yMaximum;
         CalculateYScale(out yMinimum, out yMaximum);
 
         // Iterate along the list (for accessing each point coordinates). 
-        bool yScaleChanged = yMinimumBefore != yMinimum || yMaximumBefore != yMaximum;
-        if (!yScaleChanged) // Taking into consideration that Y scale did not change, it will only be necessary to update one value (the other points remain intact).
+        int xIndex = 0;
+        for (int i = Mathf.Max(valueList.Count - maxVisibleValueAmount, 0); i < valueList.Count; i++)
         {
-            // Y Scale did not change, update only this value
-            float xPosition = index * xSize;
-            float yPosition = ((value - yMinimum) / (yMaximum - yMinimum)) * graphHeight;
+            // Conversion of sequence number to a x coordinate accordingly to our graph properties.
+            float xPosition = xIndex * xSize;
 
-            // Add data point visual
-            GraphVisualObjectList[index].SetGraphicalVisualObjectInfo(new Vector2(xPosition, yPosition), xSize);
+            // Conversion of value inside value list to a y coordinate accordingly to our graph properties.
+            float yPosition = ((valueList[i] - yMinimum) / (yMaximum - yMinimum)) * graphHeight; // Normalization to our graph maximum height.
+
+            // Create Line Graph Visual Object.
+            GraphVisualObjectList[xIndex].SetGraphicalVisualObjectInfo(new Vector2(xPosition, yPosition), xSize);
+
+            // Update counter.
+            xIndex++;
         }
-        else
+
+        for (int i = 0; i < yLabelList.Count; i++)
         {
-            int xIndex = 0;
-            for (int i = Mathf.Max(valueList.Count - maxVisibleValueAmount, 0); i < valueList.Count; i++)
-            {
-                // Conversion of sequence number to a x coordinate accordingly to our graph properties.
-                float xPosition = xIndex * xSize;
-
-                // Conversion of value inside value list to a y coordinate accordingly to our graph properties.
-                float yPosition = ((valueList[i] - yMinimum) / (yMaximum - yMinimum)) * graphHeight; // Normalization to our graph maximum height.
-
-                // Create Line Graph Visual Object.
-                GraphVisualObjectList[xIndex].SetGraphicalVisualObjectInfo(new Vector2(xPosition, yPosition), xSize);
-
-                // Update counter.
-                xIndex++;
-            }
-
-            for (int i = 0; i < yLabelList.Count; i++)
-            {
-                float normalizedValue = i * 1f / yLabelList.Count;
-                yLabelList[i].GetComponent<Text>().text = getAxisLabelY(yMinimum + (normalizedValue * (yMaximum - yMinimum)));  // Define the text of the label.
-            }
+            float normalizedValue = i * 1f / yLabelList.Count;
+            yLabelList[i].GetComponent<Text>().text = getAxisLabelY(yMinimum + (normalizedValue * (yMaximum - yMinimum)));  // Define the text of the label.
         }
     }
 

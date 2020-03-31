@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Timers;
+//using Boo.Lang.Runtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -41,6 +42,7 @@ namespace Assets.Scripts
         public GameObject SelectedChannelPanel;
         public GameObject ChannelSelectioInfoPanel;
         public GameObject ConnectInfoPanel;
+        public GameObject BluetoothInfoPanel;
         public GameObject BLESamplingRateInfoPanel;
         public GameObject BatteryIconUnknown;
         public GameObject BatteryIcon0;
@@ -65,7 +67,6 @@ namespace Assets.Scripts
 
         // [Generic Variables]
         public PluxDeviceManager PluxDevManager;
-        private static string MultiThreadString = "";
         public List<List<int>> MultiThreadList = null;
         public List<int> MultiThreadSubList = null;
         public List<int> ActiveChannels;
@@ -80,8 +81,6 @@ namespace Assets.Scripts
         public int WindowInMemorySize;
         public bool UpdatePlotFlag = false;
         public string SelectedDevice = "";
-
-        private IncrementCounter communicationCounter;
 
 
         // Awake is called when the script instance is being loaded.
@@ -110,9 +109,6 @@ namespace Assets.Scripts
             GraphZone = new WindowGraph(GraphContainer, graphVisual);
             GraphZone.ShowGraph(new List<int>() { 0 }, graphVisual, -1, (int _i) => "" + (_i), (float _f) => Mathf.RoundToInt(_f) + "k");
 
-            // Test elements.
-            communicationCounter = new IncrementCounter();
-
             // Create a timer that controls the update of real-time plot.
             System.Timers.Timer waitForPlotTimer = new System.Timers.Timer();
             waitForPlotTimer.Elapsed += new ElapsedEventHandler(OnWaitingTimeEnds);
@@ -124,72 +120,39 @@ namespace Assets.Scripts
         // Update function, being constantly invoked by Unity.
         void Update()
         {
-            // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
-            lock (MultiThreadString)
+            try
             {
-                if (MultiThreadString.Length > 0)
+                // Get packages of data.
+                int[] pacakgeOfData = PluxDevManager.GetPackageOfData(VisualizationChannel, ActiveChannels, UpdatePlotFlag);
+
+                // Check if there it was communicated an event/error code.
+                if (pacakgeOfData != null)
                 {
-                    // Update counter, preparing for the next iterations.
-                    LastLenMultiThreadString = MultiThreadString.Length;
-
-                    // Split our string, taking into consideration our separator.
-                    string[] MultiThreadArray = MultiThreadString.Split('#');
-                    // Each entry of the MultiThreadArray will contain a package of data from the different active channels.
-                    for (int i = 0; i < MultiThreadArray.Length; i++)
-                    {
-                        string[] MultiThreadSubArray = MultiThreadArray[i].Split('&');
-                        for (int j = 0; j < MultiThreadSubArray.Length - 1; j++)
-                        {
-                            // Inclusion of acquired data in our global data structure.
-                            if (MultiThreadSubArray[j] != "")
-                            {
-                                tempInt = Int32.Parse(MultiThreadSubArray[j]);
-                                MultiThreadList[ActiveChannels[j]].Add(tempInt);
-
-                                // Check if list contains more than 20 seconds of data [Memory Release].
-                                if (MultiThreadList[ActiveChannels[j]].Count >= WindowInMemorySize)
-                                {
-                                    MultiThreadList[ActiveChannels[j]].RemoveAt(0);
-                                }
-                            }
-                        }
-                    }
-
-                    // Reboot string.
-                    MultiThreadString = "";
-
-                    // Check if there it was communicated an event/error code.
-                    int lastCommunicatedData = MultiThreadList[ActiveChannels[0]][MultiThreadList[ActiveChannels[0]].Count - 1];
-                    if (lastCommunicatedData >= 0)
+                    if (pacakgeOfData.Length != 0)
                     {
                         // Creation of the first graphical representation of the results.
                         if (MultiThreadList[VisualizationChannel].Count >= 0)
                         {
-                            if (MultiThreadList[VisualizationChannel].Count != 0 && MultiThreadList[VisualizationChannel].Count > GraphWindSize && FirstPlot == true)
+                            if (FirstPlot == true)
                             {
                                 // Update flag (after this step we won't enter again on this statement).
                                 FirstPlot = false;
 
-                                // Hide Acquiring Icon Image.
-                                //AcquiringIcon.SetActive(false);
-
                                 // Plot first set of data.
                                 // Subsampling if sampling rate is bigger than 100 Hz.
-                                List<int> subSamplingList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
-                                GraphZone.ShowGraph(subSamplingList, null, -1, (int _i) => "-" + (GraphWindSize - _i), (float _f) => Mathf.RoundToInt(_f / 1000) + "k");
+                                List<int> subSamplingList = GetSubSampleList(new int[GraphWindSize], SamplingRate, GraphWindSize);
+                                GraphZone.ShowGraph(subSamplingList, null, -1, (int _i) => "-" + (GraphWindSize - _i),
+                                    (float _f) => Mathf.RoundToInt(_f / 1000) + "k");
                             }
                             // Update plot.
                             else if (FirstPlot == false)
                             {
                                 // This if clause ensures that the real-time plot will only be updated every 1 second (Memory Restrictions).
-                                if (UpdatePlotFlag == true)
+                                if (UpdatePlotFlag == true && pacakgeOfData != null)
                                 {
                                     // Get the values linked with the last 10 seconds of information.
-                                    MultiThreadSubList = GetSubSampleList(MultiThreadList[VisualizationChannel], SamplingRate, GraphWindSize);
-                                    for (int j = 0; j < MultiThreadSubList.Count; j++)
-                                    {
-                                        GraphZone.UpdateValue(j, MultiThreadSubList[j]);
-                                    }
+                                    MultiThreadSubList = GetSubSampleList(pacakgeOfData, SamplingRate, GraphWindSize);
+                                    GraphZone.UpdateValue(MultiThreadSubList);
 
                                     // Reboot flag.
                                     UpdatePlotFlag = false;
@@ -197,43 +160,24 @@ namespace Assets.Scripts
                             }
                         }
                     }
-                    // If an event/error code was sent by PluxDeviceManager then the acquisition should be stopped.
-                    else
-                    {
-                        // Stop Acquisition in a secure way.
-                        StopButtonFunction(lastCommunicatedData);
-                    }
                 }
             }
-        }
-
-        // Callback Handler (function invoked during signal acquisition, being essential to ensure the 
-        // communication between our C++ API and the Unity project.
-        bool CallbackHandler(int nSeq, int[] data, int dataLength)
-        {
-            // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
-            lock (MultiThreadString)
+            catch (ArgumentOutOfRangeException exception)
             {
-                // Store data in a string format (sharable variable).
-                MultiThreadString += "#";
-
-                // The resulting dataArray will have in each entry the sampled value of the respective channel.
-                // Samples are organized in a sequential way, so if channels 1 and 4 are active it means that
-                // data[0] will contain the sample value of channel 1 while data[1] is the sample collected on channel 4.
-                for (int i = 0; i < data.Length; i++)
-                {
-                    MultiThreadString += data[i].ToString() + "&";
-                }
-
-                // DEBUG
-                //Console.WriteLine("nSeq_: " + nSeq.ToString() + " data_: " + data[0].ToString());
-
-                lock (communicationCounter)
-                {
-                    communicationCounter.increment();
-                }
+                Debug.Log("Exception in the Update method: " + exception.StackTrace);
+                Console.WriteLine("Current Thread: " + Thread.CurrentThread.Name);
             }
-            return true;
+            catch (ExternalException exc)
+            {
+                Debug.Log("ExternalException in the Update() callback:\n" + exc.Message + "\n" + exc.StackTrace);
+                
+                // Stop Acquisition in a secure way.
+                StopButtonFunction(-1);
+            }
+            catch (Exception exc)
+            {
+                Debug.Log("Unidentified Exception inside Update() callback:\n" + exc.Message + "\n" + exc.StackTrace);
+            }
         }
 
         // Method invoked when the application was closed.
@@ -317,10 +261,10 @@ namespace Assets.Scripts
             catch (Exception e)
             {
                 // Show info message.
-                ConnectInfoPanel.SetActive(true);
+                BluetoothInfoPanel.SetActive(true);
 
                 // Hide object after 5 seconds.
-                StartCoroutine(RemoveAfterSeconds(5, ConnectInfoPanel));
+                StartCoroutine(RemoveAfterSeconds(5, BluetoothInfoPanel));
 
                 // Disable Drop-down.
                 DeviceDropdown.interactable = false;
@@ -335,10 +279,6 @@ namespace Assets.Scripts
                 // Change the color and text of "Connect" button.
                 if (ConnectText.text == "Connect")
                 {
-                    // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
-                    // samples as inputs.
-                    PluxDevManager.SetCallbackHandler(CallbackHandler);
-
                     // Get the selected device.
                     this.SelectedDevice = this.ListDevices[DeviceDropdown.value];
 
@@ -382,9 +322,9 @@ namespace Assets.Scripts
                         ResolutionDropdown.ClearOptions();
 
                         //Add the options created in the List above
-                        ResolutionDropdown.AddOptions(new List<string>() { "8" });
+                        ResolutionDropdown.AddOptions(new List<string>() { "10" });
                     }
-                    else if (devType == "biosignalsplux")
+                    else if (devType == "biosignalsplux" || devType == "BioPlux")
                     {
                         CH1Toggle.interactable = true;
                         CH2Toggle.interactable = true;
@@ -399,7 +339,16 @@ namespace Assets.Scripts
                         ResolutionDropdown.ClearOptions();
 
                         //Add the options created in the List above
-                        ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
+                        if (devType == "biosignalsplux")
+                        {
+                            ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
+                            ResolutionDropDownOptions = new List<string>() { "8", "16" };
+                        }
+                        else
+                        {
+                            ResolutionDropdown.AddOptions(new List<string>() { "8", "12" });
+                            ResolutionDropDownOptions = new List<string>() { "8", "12" };
+                        }
                     }
                     else if (devType == "OpenBANPlux")
                     {
@@ -427,8 +376,11 @@ namespace Assets.Scripts
                     ConnectInfoPanel.SetActive(false);
 
                     // Update Battery Level.
-                    int batteryLevel;
-                    batteryLevel = PluxDevManager.GetBatteryUnity();
+                    int batteryLevel = -1;
+                    if (devType != "BioPlux")
+                    {
+                        batteryLevel = PluxDevManager.GetBatteryUnity();
+                    }
 
                     // Battery icon accordingly to the battery level.
                     List<GameObject> ListBatteryIcons = new List<GameObject>() { BatteryIcon0, BatteryIcon10, BatteryIcon50, BatteryIcon100, BatteryIconUnknown };
@@ -448,10 +400,15 @@ namespace Assets.Scripts
                         BatteryIcon10.SetActive(true);
                         currImage = BatteryIcon10;
                     }
-                    else
+                    else if (batteryLevel == 0)
                     {
                         BatteryIcon0.SetActive(true);
                         currImage = BatteryIcon0;
+                    }
+                    else
+                    {
+                        BatteryIconUnknown.SetActive(true);
+                        currImage = BatteryIconUnknown;
                     }
 
                     // Disable the remaining images.
@@ -464,17 +421,28 @@ namespace Assets.Scripts
                     }
 
                     // Show the quantitative battery value.
-                    BatteryLevel.text = batteryLevel.ToString() + "%";
+                    if (batteryLevel != -1)
+                    {
+                        BatteryLevel.text = batteryLevel.ToString() + "%";
+                    }
+                    else
+                    {
+                        BatteryLevel.text = "N.A.";
+                    }
                 }
                 else if (ConnectText.text == "Disconnect")
                 {
 
-                    // Disconnect device if the stop was forced by an event or timeout exception.
-                    if (typeOfStop == false)
+                    try
                     {
+                        // Disconnect device.
                         PluxDevManager.DisconnectPluxDev();
                     }
-                    
+                    catch (Exception exception)
+                    {
+                        Debug.Log("Trying to disconnect from an unconnected device...");
+                    }
+
                     ConnectText.text = "Connect";
                     GreenFlag.SetActive(false);
                     RedFlag.SetActive(true);
@@ -543,95 +511,114 @@ namespace Assets.Scripts
         // Function invoked during the onClick event of "StartButton".
         public void StartButtonFunction()
         {
-            // Get Device Configuration input values.
-            SamplingRate = Int32.Parse(SamplingRateInput.text);
-            int resolution = Int32.Parse(ResolutionDropDownOptions[ResolutionDropdown.value]);
-
-            // Update graphical window size variable (the plotting zone should contain 10 seconds of data).
-            GraphWindSize = SamplingRate * 10;
-            WindowInMemorySize = Convert.ToInt32(1.1 * GraphWindSize);
-
-            // Number of Active Channels.
-            int nbrChannels = 0;
-            Toggle[] toggleArray = new Toggle[] { CH1Toggle, CH2Toggle, CH3Toggle, CH4Toggle, CH5Toggle, CH6Toggle, CH7Toggle, CH8Toggle };
-            MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
-            for (int i = 0; i < toggleArray.Length; i++)
+            try
             {
-                if (toggleArray[i].isOn == true)
+                // Get Device Configuration input values.
+                SamplingRate = Int32.Parse(SamplingRateInput.text);
+                int resolution = Int32.Parse(ResolutionDropDownOptions[ResolutionDropdown.value]);
+
+                // Update graphical window size variable (the plotting zone should contain 10 seconds of data).
+                GraphWindSize = SamplingRate * 10;
+                WindowInMemorySize = Convert.ToInt32(1.1 * GraphWindSize);
+
+                // Number of Active Channels.
+                int nbrChannels = 0;
+                Toggle[] toggleArray = new Toggle[]
+                    {CH1Toggle, CH2Toggle, CH3Toggle, CH4Toggle, CH5Toggle, CH6Toggle, CH7Toggle, CH8Toggle};
+                MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
+                for (int i = 0; i < toggleArray.Length; i++)
                 {
-                    // Preparation of a string that will be communicated to our .dll
-                    // This string will be formed by "1" or "0" characters, identifying sequentially which channels are active or not.
-                    ActiveChannels.Add(i + 1);
-
-                    // Definition of the first active channel.
-                    if (VisualizationChannel == -1)
+                    if (toggleArray[i].isOn == true)
                     {
-                        VisualizationChannel = i + 1;
+                        // Preparation of a string that will be communicated to our .dll
+                        // This string will be formed by "1" or "0" characters, identifying sequentially which channels are active or not.
+                        ActiveChannels.Add(i + 1);
 
-                        // Update the label with the Current Channel Number.
-                        CurrentChannel.text = "CH" + VisualizationChannel;
+                        // Definition of the first active channel.
+                        if (VisualizationChannel == -1)
+                        {
+                            VisualizationChannel = i + 1;
+
+                            // Update the label with the Current Channel Number.
+                            CurrentChannel.text = "CH" + VisualizationChannel;
+                        }
+
+                        nbrChannels++;
                     }
 
-                    nbrChannels++;
+                    // Dictionary that stores all the data received from .dll API.
+                    MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
                 }
 
-                // Dictionary that stores all the data received from .dll API.
-                MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
-            }
-
-            // Check if at least one channel is active.
-            if (ActiveChannels.Count != 0)
-            {
-                // Start of Acquisition.
-                //Thread.CurrentThread.Name = "MAIN_THREAD";
-                if (PluxDevManager.GetDeviceTypeUnity() != "MuscleBAN BE Plux")
+                // Check if at least one channel is active.
+                if (ActiveChannels.Count != 0)
                 {
-                    PluxDevManager.StartAcquisitionUnity(SamplingRate, ActiveChannels, resolution);
+                    // Start of Acquisition.
+                    //Thread.CurrentThread.Name = "MAIN_THREAD";
+                    if (PluxDevManager.GetDeviceTypeUnity() != "MuscleBAN BE Plux")
+                    {
+                        PluxDevManager.StartAcquisitionUnity(SamplingRate, ActiveChannels, resolution);
+                    }
+                    else
+                    {
+                        // Definition of the frequency divisor (subsampling ratio).
+                        int freqDivisor = 10;
+                        PluxDevManager.StartAcquisitionMuscleBanUnity(SamplingRate, ActiveChannels, resolution,
+                            freqDivisor);
+                    }
+
+                    // Enable StopButton.
+                    StopButton.interactable = true;
+
+                    // Disable ConnectButton.
+                    ConnectButton.interactable = false;
+
+                    // Disable Start Button.
+                    StartButton.interactable = false;
+
+                    // Hide PlotIcon and show AcquiringIcon.
+                    PlotIcon.SetActive(false);
+                    TransparencyLevel.SetActive(false);
+                    //AcquiringIcon.SetActive(true);
+
+                    // Hide panel with the "Change Channel" button.
+                    SelectedChannelPanel.SetActive(true);
+                    if (ActiveChannels.Count == 1)
+                    {
+                        ChangeChannel.interactable = false;
+                    }
+                    else
+                    {
+                        ChangeChannel.interactable = true;
+                    }
+
+                    // Disable About Button to avoid entering a new scene during the acquisition.
+                    AboutButton.interactable = false;
                 }
                 else
                 {
-                    // Definition of the frequency divisor (subsampling ratio).
-                    int freqDivisor = 10;
-                    PluxDevManager.StartAcquisitionMuscleBanUnity(SamplingRate, ActiveChannels, resolution, freqDivisor);
+                    // Show Info Message.
+                    ChannelSelectioInfoPanel.SetActive(true);
+
+                    // Hide object after 5 seconds.
+                    StartCoroutine(RemoveAfterSeconds(5, ChannelSelectioInfoPanel));
                 }
-              
-                // Enable StopButton.
-                StopButton.interactable = true;
-
-                // Disable ConnectButton.
-                ConnectButton.interactable = false;
-
-                // Disable Start Button.
-                StartButton.interactable = false;
-
-                // Hide PlotIcon and show AcquiringIcon.
-                PlotIcon.SetActive(false);
-                TransparencyLevel.SetActive(false);
-                //AcquiringIcon.SetActive(true);
-
-                // Hide panel with the "Change Channel" button.
-                SelectedChannelPanel.SetActive(true);
-                if (ActiveChannels.Count == 1)
-                {
-                    ChangeChannel.interactable = false;
-                }
-                else
-                {
-                    ChangeChannel.interactable = true;
-                }
-
-                // Disable About Button to avoid entering a new scene during the acquisition.
-                AboutButton.interactable = false;
             }
-            else
+            catch (Exception exc)
             {
-                // Show Info Message.
-                ChannelSelectioInfoPanel.SetActive(true);
+                // Exception info.
+                Debug.Log("Exception: " + exc.Message + "\n" + exc.StackTrace);
+
+                // Show info message.
+                ConnectInfoPanel.SetActive(true);
 
                 // Hide object after 5 seconds.
-                StartCoroutine(RemoveAfterSeconds(5, ChannelSelectioInfoPanel));
+                StartCoroutine(RemoveAfterSeconds(5, ConnectInfoPanel));
+                   
+                // Reboot interface.
+                ConnectButtonFunction(true);
             }
-        
+
         }
 
         // Function invoked during the onClick event of "StopButton".
@@ -641,10 +628,6 @@ namespace Assets.Scripts
             bool typeOfStop;
 
             // Check how many samples were communicated by the device.
-            lock (communicationCounter)
-            {
-                Console.WriteLine("Number of Communications: " + communicationCounter.getCounter().ToString());
-            }
             typeOfStop = PluxDevManager.StopAcquisitionUnity(forceStop);
             
             // Disable StopButton.
@@ -656,11 +639,21 @@ namespace Assets.Scripts
             // Enable ConnectButton.
             ConnectButton.interactable = true;
 
-            // Stop Message.
-            Debug.Log("Acquisition was Stopped :D");
-
             // Disconnect device if a forced stop occurred.
-            ConnectButtonFunction(typeOfStop);
+            if (ConnectText.text == "Disconnect")
+            {
+                ConnectButtonFunction(typeOfStop);
+            }
+
+            // Show a warning message if something wrong happened.
+            if (typeOfStop == true)
+            {
+                // Show info message.
+                ConnectInfoPanel.SetActive(true);
+
+                // Present a message stating the communication error and hide it after 5 seconds.
+                StartCoroutine(RemoveAfterSeconds(5, ConnectInfoPanel));
+            }
 
             // Hide info message.
             BLESamplingRateInfoPanel.SetActive(false);
@@ -775,7 +768,7 @@ namespace Assets.Scripts
         }
 
         // Function used to subsample acquired data.
-        public List<int> GetSubSampleList(List<int> originalList, int samplingRate, int graphWindowSize)
+        public List<int> GetSubSampleList(int[] originalArray, int samplingRate, int graphWindowSize)
         {
             // Subsampling if sampling rate is bigger than 100 Hz.
             List<int> subSamplingList = new List<int>();
@@ -784,30 +777,29 @@ namespace Assets.Scripts
             {
                 // Subsampling Level.
                 subSamplingLevel = samplingRate / 100;
-                for (int i = 0; i < originalList.Count; i++)
+                for (int i = 0; i < originalArray.Length; i++)
                 {
                     if (i % subSamplingLevel == 0)
                     {
-                        subSamplingList.Add(originalList[i]);
+                        subSamplingList.Add(originalArray[i]);
                     }
                 }
             }
             else
             {
-                subSamplingList = originalList;
+                for (int i = 0; i < originalArray.Length; i++)
+                {
+                    subSamplingList.Add(originalArray[i]);
+                }
             }
 
-            return subSamplingList.GetRange(subSamplingList.Count - (graphWindowSize / subSamplingLevel), (graphWindowSize / subSamplingLevel));
+            return subSamplingList;
         }
 
         public void RebootVariables()
         {
             MultiThreadList = new List<List<int>>();
             ActiveChannels = new List<int>();
-            lock (MultiThreadString)
-            {
-                MultiThreadString = "";
-            }
             MultiThreadSubList = null;
             LastLenMultiThreadString = 0;
             GraphWindSize = -1;
@@ -819,24 +811,6 @@ namespace Assets.Scripts
         {
             // Update flag, which will trigger the update of real-time plot.
             UpdatePlotFlag = true;
-        }
-
-        // Auxiliary subclass that ensures the counting of the number of communicated samples between the device and the computer.
-        public class IncrementCounter
-        {
-            public int comCounter = 0;
-
-            // Increment the counter value.
-            public void increment()
-            {
-                comCounter++;
-            }
-
-            // Get the counter value.
-            public int getCounter()
-            {
-                return comCounter;
-            }
         }
 
         // Get the number of active toggle buttons.
