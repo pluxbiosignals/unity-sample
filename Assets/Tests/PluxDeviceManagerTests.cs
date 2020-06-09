@@ -12,15 +12,11 @@ namespace Assets.Scripts
 
         public void OneTimeSetup()
         {
-            pluxManager = new PluxDeviceManager();
+            pluxManager = new PluxDeviceManager(ScanResults, ConnectionDone);
 
             if (string.IsNullOrEmpty(deviceMacAddr))
             {
-                var devices = pluxManager.GetDetectableDevicesUnity(new List<string>{"BTH", "BLE"});
-                if (devices.Count <= 0)
-                    Console.WriteLine("Can't run tests without a device to connect to");
-
-                deviceMacAddr = "BTH00:07:80:4D:2E:AD";
+                pluxManager.GetDetectableDevicesUnity(new List<string> {"BTH", "BLE"});
             }
         }
 
@@ -61,6 +57,23 @@ namespace Assets.Scripts
             pluxManager.DisconnectPluxDev();
 
             Console.WriteLine("Initiated and Destroyed with success with delay!");
+        }
+
+        // Callback that receives the list of PLUX devices found during the Bluetooth scan.
+        public void ScanResults(List<string> listDevices)
+        {
+            if (listDevices.Count <= 0)
+            {
+                Console.WriteLine("Can't run tests without a device to connect to");
+            }
+
+            deviceMacAddr = "BTH00:07:80:4D:2E:AD";
+        }
+
+        // Callback invoked once the connection with a PLUX device was established.
+        public void ConnectionDone()
+        {
+
         }
     }
 }

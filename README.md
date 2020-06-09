@@ -35,7 +35,19 @@ On the following animation we can quickly show the main functionalities of our *
 
 ## How to Easily Integrate the API in your Unity Project?
 1.	Copy the **plux_unity_interface.dll** to the **Plugins** folder of your Unity project. The location of this file will depend on the desired Operating System Architecture (x86 or x86_64): `plux-api-unity-sample/Assets/Plugins/x86/plux_unity_interface.dll` **\[32 bits]** or `plux-api-unity-sample/Assets/Plugins/x86_64/plux_unity_interface.dll` **\[64 bits]**
-2.	Copy the **PluxDeviceManager.cs** script (a C\# interface to PLUX API) to the **Scripts** folder of your Unity project. In this case the file location is: `plux-api-unity-sample/Assets/Scripts/PluxDeviceManager.cs`
+2.	Copy the **PluxDeviceManager** folder (a C\# interface to PLUX API) to the **Scripts** folder of your Unity project. In this case the directory location is: `plux-api-unity-sample/Assets/Scripts/PluxDeviceManager`
+
+> **WARNING**
+>
+> While initialising **PluxDeviceManager** instance/object it will be necessary to specify a callback responsible for dealing with the asynchronous results produced during the Bluetooth device scan and another one that flags when a successful Bluetooth connection is established. The callbacks should present the following structure:
+>
+> **Scanning Results**
+>
+> `public void ScanResults(List<string> listDevices)`
+>
+> **Connection Successful**
+>
+> `public void ConnectionDone()`
 
 After the previous two steps, you will be fully prepared to expand your Unity project and include some interesting functionalities through the use of **PLUX** signal acquisition devices.
 
@@ -221,13 +233,22 @@ The size of the first dimension is equal to the number of active channels.
 
 Class method intended to find the list of detectable devices through **Bluetooth** communication.
 ```csharp
-List<string> GetDetectableDevicesUnity(List<string> domains)
+void GetDetectableDevicesUnity(List<string> domains)
 ```
 
 ### Description
 
 Internally the list of detected devices reaches `PluxDeviceManager.cs` in a string format, where each device mac-address is separated from each other by a "&" character.
+
+`GetDetectableDevicesUnity` trigger the start of a Bluetooth scan in a parallel thread.
+
 In `GetDetectableDevicesUnity` an automatic split of the received string took place, ensuring that a list with the available mac-addresses will be returned.
+
+> **WARNING**
+>
+> To access the results of the previously started asynchronous task, a callback with the following format should be implemented in your application:
+>
+> `public void ScanResults(List<string> listDevices)`
 
 ### Parameters
 

@@ -95,7 +95,7 @@ namespace Assets.Scripts
         {
             // Welcome Message, showing that the communication between C++ dll and Unity was established correctly.
             Debug.Log("Connection between C++ Interface and Unity established with success !\n");
-            PluxDevManager = new PluxDeviceManager();
+            PluxDevManager = new PluxDeviceManager(ScanResults, ConnectionDone);
             int welcomeNumber = PluxDevManager.WelcomeFunctionUnity();
             Debug.Log("Welcome Number: " + welcomeNumber);
 
@@ -207,56 +207,10 @@ namespace Assets.Scripts
                     listOfDomains.Add("BLE");
                 }
 
-                this.ListDevices = PluxDevManager.GetDetectableDevicesUnity(listOfDomains);
+                PluxDevManager.GetDetectableDevicesUnity(listOfDomains);
 
-                // Info message for development purposes.
-                Console.WriteLine("Number of Detected Devices: " + this.ListDevices.Count);
-                for (int i = 0; i < this.ListDevices.Count; i++)
-                {
-                    Console.WriteLine("Device--> " + this.ListDevices[i]);
-                }
-
-                // Enable Dropdown if the list of devices is not empty.
-                if (this.ListDevices.Count != 0)
-                {
-                    // Add the new options to the drop-down box included in our GUI.
-                    //Create a List of new Dropdown options
-                    List<string> dropDevices = new List<string>();
-
-                    // Convert array to list format.
-                    dropDevices.AddRange(this.ListDevices);
-
-                    // A check into the list of devices.
-                    dropDevices = dropDevices.GetRange(0, dropDevices.Count);
-                    for (int i = dropDevices.Count - 1; i >= 0; i--)
-                    {
-                        // Accept only strings containing "BTH" or "BLE" substrings "flagging" a PLUX Bluetooth device.
-                        if (!dropDevices[i].Contains("BTH") && !dropDevices[i].Contains("BLE"))
-                        {
-                            dropDevices.RemoveAt(i);
-                        }
-                    }
-
-                    // Raise an exception if none device was detected.
-                    if (dropDevices.Count == 0)
-                    {
-                        throw new ArgumentException();
-                    }
-
-                    //Clear the old options of the Dropdown menu
-                    DeviceDropdown.ClearOptions();
-
-                    //Add the options created in the List above
-                    DeviceDropdown.AddOptions(dropDevices);
-
-                    // Enable drop-down and Connect button if a PLUX Device was detected .
-                    DeviceDropdown.interactable = true;
-                    ConnectButton.interactable = true;
-
-                    // Hide info message.
-                    ConnectInfoPanel.SetActive(false);
-
-                }
+                // Disable scan button.
+                ScanButton.interactable = false;
             }
             catch (Exception e)
             {
@@ -286,149 +240,6 @@ namespace Assets.Scripts
                     Debug.Log("Trying to establish a connection with device " + this.SelectedDevice);
                     Console.WriteLine("Selected Device: " + this.SelectedDevice);
                     PluxDevManager.PluxDev(this.SelectedDevice);
-                    Debug.Log("Connection with device " + this.SelectedDevice + " established with success!");
-
-                    ConnectText.text = "Disconnect";
-                    GreenFlag.SetActive(true);
-                    RedFlag.SetActive(false);
-
-                    // Enable "Device Configuration" panel options.
-                    SamplingRateInput.interactable = true;
-                    ResolutionInput.interactable = true;
-                    ResolutionDropdown.interactable = true;
-
-                    // Enable channel selection buttons accordingly to the type of device.
-                    string devType = PluxDevManager.GetDeviceTypeUnity();
-                    if (devType == "MuscleBAN BE Plux")
-                    {
-                        CH1Toggle.interactable = true;
-
-                        //Clear the old options of the Dropdown menu
-                        ResolutionDropdown.ClearOptions();
-
-                        //Add the options created in the List above
-                        ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
-                    }
-                    else if (devType == "BITalino")
-                    {
-                        CH1Toggle.interactable = true;
-                        CH2Toggle.interactable = true;
-                        CH3Toggle.interactable = true;
-                        CH4Toggle.interactable = true;
-                        CH5Toggle.interactable = true;
-                        CH6Toggle.interactable = true;
-
-                        //Clear the old options of the Dropdown menu
-                        ResolutionDropdown.ClearOptions();
-
-                        //Add the options created in the List above
-                        ResolutionDropdown.AddOptions(new List<string>() { "10" });
-                    }
-                    else if (devType == "biosignalsplux" || devType == "BioPlux")
-                    {
-                        CH1Toggle.interactable = true;
-                        CH2Toggle.interactable = true;
-                        CH3Toggle.interactable = true;
-                        CH4Toggle.interactable = true;
-                        CH5Toggle.interactable = true;
-                        CH6Toggle.interactable = true;
-                        CH7Toggle.interactable = true;
-                        CH8Toggle.interactable = true;
-
-                        //Clear the old options of the Dropdown menu
-                        ResolutionDropdown.ClearOptions();
-
-                        //Add the options created in the List above
-                        if (devType == "biosignalsplux")
-                        {
-                            ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
-                            ResolutionDropDownOptions = new List<string>() { "8", "16" };
-                        }
-                        else
-                        {
-                            ResolutionDropdown.AddOptions(new List<string>() { "8", "12" });
-                            ResolutionDropDownOptions = new List<string>() { "8", "12" };
-                        }
-                    }
-                    else if (devType == "OpenBANPlux")
-                    {
-                        CH1Toggle.interactable = true;
-                        CH2Toggle.interactable = true;
-
-                        //Clear the old options of the Dropdown menu
-                        ResolutionDropdown.ClearOptions();
-
-                        //Add the options created in the List above
-                        ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
-                    }
-                    else
-                    {
-                        throw new NotSupportedException();
-                    }
-
-                    // Enable Start and Device Configuration buttons.
-                    StartButton.interactable = true;
-
-                    // Disable Connect Button.
-                    //ConnectButton.interactable = false;
-
-                    // Hide show Info message if it is active.
-                    ConnectInfoPanel.SetActive(false);
-
-                    // Update Battery Level.
-                    int batteryLevel = -1;
-                    if (devType != "BioPlux")
-                    {
-                        batteryLevel = PluxDevManager.GetBatteryUnity();
-                    }
-
-                    // Battery icon accordingly to the battery level.
-                    List<GameObject> ListBatteryIcons = new List<GameObject>() { BatteryIcon0, BatteryIcon10, BatteryIcon50, BatteryIcon100, BatteryIconUnknown };
-                    GameObject currImage;
-                    if (batteryLevel > 50)
-                    {
-                        BatteryIcon100.SetActive(true);
-                        currImage = BatteryIcon100;
-                    }
-                    else if (batteryLevel <= 50 && batteryLevel > 10)
-                    {
-                        BatteryIcon50.SetActive(true);
-                        currImage = BatteryIcon50;
-                    }
-                    else if (batteryLevel <= 10 && batteryLevel > 1)
-                    {
-                        BatteryIcon10.SetActive(true);
-                        currImage = BatteryIcon10;
-                    }
-                    else if (batteryLevel == 0)
-                    {
-                        BatteryIcon0.SetActive(true);
-                        currImage = BatteryIcon0;
-                    }
-                    else
-                    {
-                        BatteryIconUnknown.SetActive(true);
-                        currImage = BatteryIconUnknown;
-                    }
-
-                    // Disable the remaining images.
-                    foreach (var batImg in ListBatteryIcons)
-                    {
-                        if (batImg != currImage)
-                        {
-                            batImg.SetActive(false);
-                        }
-                    }
-
-                    // Show the quantitative battery value.
-                    if (batteryLevel != -1)
-                    {
-                        BatteryLevel.text = batteryLevel.ToString() + "%";
-                    }
-                    else
-                    {
-                        BatteryLevel.text = "N.A.";
-                    }
                 }
                 else if (ConnectText.text == "Disconnect")
                 {
@@ -629,15 +440,21 @@ namespace Assets.Scripts
 
             // Check how many samples were communicated by the device.
             typeOfStop = PluxDevManager.StopAcquisitionUnity(forceStop);
-            
-            // Disable StopButton.
-            StopButton.interactable = false;
 
             // Enable About Button.
             AboutButton.interactable = true;
 
             // Enable ConnectButton.
-            ConnectButton.interactable = true;
+            if (StopButton.interactable == true)
+            {
+                ConnectButton.interactable = true;
+            }
+
+            // Enable ScanButton.
+            ScanButton.interactable = true;
+
+            // Disable StopButton.
+            StopButton.interactable = false;
 
             // Disconnect device if a forced stop occurred.
             if (ConnectText.text == "Disconnect")
@@ -646,7 +463,7 @@ namespace Assets.Scripts
             }
 
             // Show a warning message if something wrong happened.
-            if (typeOfStop == true)
+            if (typeOfStop == true || forceStop == -1)
             {
                 // Show info message.
                 ConnectInfoPanel.SetActive(true);
@@ -758,6 +575,216 @@ namespace Assets.Scripts
 
             // Update the label with the Current Channel Number.
             CurrentChannel.text = "CH" + VisualizationChannel;
+        }
+
+        // Callback that receives the list of PLUX devices found during the Bluetooth scan.
+        public void ScanResults(List<string> listDevices)
+        {
+            // Store list of devices in a global variable.
+            this.ListDevices = listDevices;
+
+            // Info message for development purposes.
+            Console.WriteLine("Number of Detected Devices: " + this.ListDevices.Count);
+            for (int i = 0; i < this.ListDevices.Count; i++)
+            {
+                Console.WriteLine("Device--> " + this.ListDevices[i]);
+            }
+
+            // Enable Dropdown if the list of devices is not empty.
+            if (this.ListDevices.Count != 0)
+            {
+                // Add the new options to the drop-down box included in our GUI.
+                //Create a List of new Dropdown options
+                List<string> dropDevices = new List<string>();
+
+                // Convert array to list format.
+                dropDevices.AddRange(this.ListDevices);
+
+                // A check into the list of devices.
+                dropDevices = dropDevices.GetRange(0, dropDevices.Count);
+                for (int i = dropDevices.Count - 1; i >= 0; i--)
+                {
+                    // Accept only strings containing "BTH" or "BLE" substrings "flagging" a PLUX Bluetooth device.
+                    if (!dropDevices[i].Contains("BTH") && !dropDevices[i].Contains("BLE"))
+                    {
+                        dropDevices.RemoveAt(i);
+                    }
+                }
+
+                // Raise an exception if none device was detected.
+                if (dropDevices.Count == 0)
+                {
+                    throw new ArgumentException();
+                }
+
+                //Clear the old options of the Dropdown menu
+                DeviceDropdown.ClearOptions();
+
+                //Add the options created in the List above
+                DeviceDropdown.AddOptions(dropDevices);
+
+                // Enable drop-down and Connect button if a PLUX Device was detected .
+                DeviceDropdown.interactable = true;
+                ConnectButton.interactable = true;
+
+                // Hide info message.
+                ConnectInfoPanel.SetActive(false);
+            }
+
+            // Enable scan button.
+            ScanButton.interactable = true;
+        }
+
+        // Callback invoked once the connection with a PLUX device was established.
+        public void ConnectionDone()
+        {
+            // Change the color and text of "Connect" button.
+            if (ConnectText.text == "Connect")
+            {
+                Debug.Log("Connection with device " + this.SelectedDevice + " established with success!");
+
+                ConnectText.text = "Disconnect";
+                GreenFlag.SetActive(true);
+                RedFlag.SetActive(false);
+
+                // Enable "Device Configuration" panel options.
+                SamplingRateInput.interactable = true;
+                ResolutionInput.interactable = true;
+                ResolutionDropdown.interactable = true;
+
+                // Enable channel selection buttons accordingly to the type of device.
+                string devType = PluxDevManager.GetDeviceTypeUnity();
+                if (devType == "MuscleBAN BE Plux")
+                {
+                    CH1Toggle.interactable = true;
+
+                    //Clear the old options of the Dropdown menu
+                    ResolutionDropdown.ClearOptions();
+
+                    //Add the options created in the List above
+                    ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
+                }
+                else if (devType == "BITalino")
+                {
+                    CH1Toggle.interactable = true;
+                    CH2Toggle.interactable = true;
+                    CH3Toggle.interactable = true;
+                    CH4Toggle.interactable = true;
+                    CH5Toggle.interactable = true;
+                    CH6Toggle.interactable = true;
+
+                    //Clear the old options of the Dropdown menu
+                    ResolutionDropdown.ClearOptions();
+
+                    //Add the options created in the List above
+                    ResolutionDropdown.AddOptions(new List<string>() { "10" });
+                }
+                else if (devType == "biosignalsplux" || devType == "BioPlux")
+                {
+                    CH1Toggle.interactable = true;
+                    CH2Toggle.interactable = true;
+                    CH3Toggle.interactable = true;
+                    CH4Toggle.interactable = true;
+                    CH5Toggle.interactable = true;
+                    CH6Toggle.interactable = true;
+                    CH7Toggle.interactable = true;
+                    CH8Toggle.interactable = true;
+
+                    //Clear the old options of the Dropdown menu
+                    ResolutionDropdown.ClearOptions();
+
+                    //Add the options created in the List above
+                    if (devType == "biosignalsplux")
+                    {
+                        ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
+                        ResolutionDropDownOptions = new List<string>() { "8", "16" };
+                    }
+                    else
+                    {
+                        ResolutionDropdown.AddOptions(new List<string>() { "8", "12" });
+                        ResolutionDropDownOptions = new List<string>() { "8", "12" };
+                    }
+                }
+                else if (devType == "OpenBANPlux")
+                {
+                    CH1Toggle.interactable = true;
+                    CH2Toggle.interactable = true;
+
+                    //Clear the old options of the Dropdown menu
+                    ResolutionDropdown.ClearOptions();
+
+                    //Add the options created in the List above
+                    ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
+                }
+                else
+                {
+                    throw new NotSupportedException();
+                }
+
+                // Enable Start and Device Configuration buttons.
+                StartButton.interactable = true;
+
+                // Disable Connect Button.
+                //ConnectButton.interactable = false;
+
+                // Hide show Info message if it is active.
+                ConnectInfoPanel.SetActive(false);
+
+                // Update Battery Level.
+                int batteryLevel = -1;
+                if (devType != "BioPlux")
+                {
+                    batteryLevel = PluxDevManager.GetBatteryUnity();
+                }
+
+                // Battery icon accordingly to the battery level.
+                List<GameObject> ListBatteryIcons = new List<GameObject>() { BatteryIcon0, BatteryIcon10, BatteryIcon50, BatteryIcon100, BatteryIconUnknown };
+                GameObject currImage;
+                if (batteryLevel > 50)
+                {
+                    BatteryIcon100.SetActive(true);
+                    currImage = BatteryIcon100;
+                }
+                else if (batteryLevel <= 50 && batteryLevel > 10)
+                {
+                    BatteryIcon50.SetActive(true);
+                    currImage = BatteryIcon50;
+                }
+                else if (batteryLevel <= 10 && batteryLevel > 1)
+                {
+                    BatteryIcon10.SetActive(true);
+                    currImage = BatteryIcon10;
+                }
+                else if (batteryLevel == 0)
+                {
+                    BatteryIcon0.SetActive(true);
+                    currImage = BatteryIcon0;
+                }
+                else
+                {
+                    BatteryIconUnknown.SetActive(true);
+                    currImage = BatteryIconUnknown;
+                }
+
+                // Disable the remaining images.
+                foreach (var batImg in ListBatteryIcons)
+                {
+                    if (batImg != currImage)
+                    {
+                        batImg.SetActive(false);
+                    }
+                }
+
+                // Show the quantitative battery value.
+                if (batteryLevel != -1)
+                {
+                    BatteryLevel.text = batteryLevel.ToString() + "%";
+                }
+                else
+                {
+                    BatteryLevel.text = "N.A.";
+                }
+            }
         }
 
         // Coroutine used to fade out info messages after x seconds.

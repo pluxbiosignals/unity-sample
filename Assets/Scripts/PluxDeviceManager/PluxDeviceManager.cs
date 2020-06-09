@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
+
 //using Boo.Lang.Runtime;
 
 public class PluxDeviceManager
@@ -47,15 +49,22 @@ public class PluxDeviceManager
     // Delegates (needed for callback purposes).
     public delegate bool FPtr(int nSeq, int[] dataIn, int dataInSize);
     public delegate bool FPtrUnity(int exceptionCode, string exceptionDescription, int nSeq, IntPtr dataIn, int dataInSize);
+    public delegate void ScanResults(List<string> listDevices);
+    public delegate void ConnectionDone();
     //public delegate bool FPtrExceptions(int exceptionCode, string exceptionDescription);
 
     // [Generic Variables]
-    public Thread AcquisitionThread;
-    public Thread MainThread;
-    public bool DeviceConnected = false;
-    public int SamplingRate;
-    public string ActiveChannelsStr = "";
-    public bool AcquisitionStopped = true;
+    private Thread ScanningThread;
+    private Thread ConnectionThread;
+    private Thread AcquisitionThread;
+    private Thread MainThread;
+    private ScanResults ScanResultsCallback;
+    private ConnectionDone ConnectionDoneCallback;
+    private List<String> PluxDevsFound;
+    private bool DeviceConnected = false;
+    private int SamplingRate;
+    private string ActiveChannelsStr = "";
+    private bool AcquisitionStopped = true;
     private static CallbackManager callbackPointer;
     //private BufferAcqSamples BufferedSamples = new BufferAcqSamples();
     private static Lazy<BufferAcqSamples> LazyObject = null;
@@ -64,7 +73,9 @@ public class PluxDeviceManager
     private int currThreadNumber = 0;
 
     // Contructor.
-    public PluxDeviceManager()
+    // scanResultsCallback -> Callback function that will be invoked once the Bluetooth scan for PLUX devices ends.
+    // connectionDoneCallback -> Callback function that will be invoked once a connection with a PLUX device is established.
+    public PluxDeviceManager(ScanResults scanResultsCallback, ConnectionDone connectionDoneCallback)
     {
         LazyObject = new Lazy<BufferAcqSamples>(InitBufferedSamplesObject);
 
@@ -72,6 +83,19 @@ public class PluxDeviceManager
         //                     The exception code and description will be sent to Unity where an appropriate action can take place.
         FPtrUnity dllCommunicationHandler = new FPtrUnity(DllCommunicationHandler);
         SetCommunicationHandler(dllCommunicationHandler);
+
+        // Scan callback.
+        this.ScanResultsCallback = new ScanResults(scanResultsCallback);
+
+        // On connection successful callback.
+        this.ConnectionDoneCallback = new ConnectionDone(connectionDoneCallback);
+
+        // Initialise helper object that manages threads creating during the scanning and connection processes.
+        var unitDispatcher = UnityThreadHelper.Dispatcher;
+
+        // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
+        // samples as inputs.
+        SetCallbackHandler(CallbackHandler);
     }
 
     // [Redefinition of the imported methods ensuring that they are acessible on other scripts]
@@ -87,13 +111,26 @@ public class PluxDeviceManager
     // macAddress -> Device unique identifier, i.e., mac-address.
     public void PluxDev(string macAddress)
     {
+        Console.WriteLine("Scanning Thread State: " + ScanningThread.ThreadState);
         Console.WriteLine("Selected Device being received: " + macAddress);
+        
+        // Creation of new thread to manage the connection stage.
+        ConnectionThread = new Thread(() => ConnectToPluxDev(macAddress)); ;
+        ConnectionThread.Name = "CONNECTION_" + currThreadNumber;
+        currThreadNumber++;
+        ConnectionThread.Start();
+        Debug.Log("Connection Thread Started with Success !");
+    }
+
+    // Auxiliary method intended to establish a Bluetooth connection between the computer and PLUX device.
+    // macAddress -> Device unique identifier, i.e., mac-address.
+    private void ConnectToPluxDev(string macAddress)
+    {
         PluxDevUnity(macAddress);
         DeviceConnected = true;
 
-        // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
-        // samples as inputs.
-        SetCallbackHandler(CallbackHandler);
+        // Send data (list of devices found) to the MAIN THREAD.
+        UnityThreadHelper.Dispatcher.Dispatch(() => ConnectionDoneCallback());
     }
 
     public void DisconnectPluxDev()
@@ -454,35 +491,58 @@ public class PluxDeviceManager
     // Class method intended to find the list of detectable devices through Bluetooth communication.
     // domains -> Array of strings that defines which domains will be used while searching for PLUX devices 
     //            [Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy; "USB" -> Through USB connection cable]
-    public List<string> GetDetectableDevicesUnity(List<string> domains)
+    public void GetDetectableDevicesUnity(List<string> domains)
     {
-        // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
-        // samples as inputs.
-        //SetExceptionHandler(ExceptionHandler);
+        // Creation of new thread to manage the scanning stage.
+        ScanningThread = new Thread(() => ScanPluxDevs(domains)); ;
+        ScanningThread.Name = "SCANNING_" + currThreadNumber;
+        currThreadNumber++;
+        ScanningThread.Start();
+        Debug.Log("Scanning Thread Started with Success !");
+    }
 
-
-        // Search for BLE and BTH devices.
-        List<string> listDevices = new List<string>();
-        for (int domainNbr = 0; domainNbr < domains.Count; domainNbr++)
+    // Auxiliary function that manages the scanning process.
+    // domains -> Array of strings that defines which domains will be used while searching for PLUX devices 
+    //            [Valid Options: "BTH" -> classic Bluetooth; "BLE" -> Bluetooth Low Energy; "USB" -> Through USB connection cable]
+    private void ScanPluxDevs(List<string> domains)
+    {
+        try
         {
-            // List of available Devices.
-            System.IntPtr listDevicesByDomain = GetDetectableDevices(domains[domainNbr]);
-            List<System.IntPtr> listDevicesByType = new List<IntPtr>() {listDevicesByDomain};
-
-            for (int k = 0; k < listDevicesByType.Count; k++)
+            // Search for BLE and BTH devices.
+            List<string> listDevices = new List<string>();
+            for (int domainNbr = 0; domainNbr < domains.Count; domainNbr++)
             {
-                // Convert listDevices (in a String format) to an array.
-                string[] tempListDevices = Marshal.PtrToStringAnsi(listDevicesByType[k]).Split('&');
+                // List of available Devices.
+                System.IntPtr listDevicesByDomain = GetDetectableDevices(domains[domainNbr]);
+                List<System.IntPtr> listDevicesByType = new List<IntPtr>() {listDevicesByDomain};
 
-                // Add elements to the returnable list.
-                for (int i = 0; i < tempListDevices.Length - 1; i++)
+                for (int k = 0; k < listDevicesByType.Count; k++)
                 {
-                    listDevices.Add(tempListDevices[i]);
+                    // Convert listDevices (in a String format) to an array.
+                    string[] tempListDevices = Marshal.PtrToStringAnsi(listDevicesByType[k]).Split('&');
+
+                    // Add elements to the returnable list.
+                    for (int i = 0; i < tempListDevices.Length - 1; i++)
+                    {
+                        listDevices.Add(tempListDevices[i]);
+                    }
                 }
             }
-        }
 
-        return listDevices;
+            // Store list of found devices in a global variable shared between threads.
+            this.PluxDevsFound = listDevices;
+
+            // Send data (list of devices found) to the MAIN THREAD.
+            UnityThreadHelper.Dispatcher.Dispatch(() => ScanResultsCallback(this.PluxDevsFound));
+        }
+        catch (ExecutionEngineException exc)
+        {
+            BufferAcqSamples bufferedSamples = LazyObject.Value;
+            lock (bufferedSamples)
+            {
+                bufferedSamples.actUncaughtException();
+            }
+        }
     }
 
     // Definition of the callback function responsible for managing the acquired data (which is defined on users Unity script).
