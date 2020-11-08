@@ -38,9 +38,9 @@ public class PluxDeviceManager
     [DllImport("plux_unity_interface")]
     private static extern int GetBattery();
     [DllImport("plux_unity_interface")]
-    private static extern System.IntPtr GetDetectableDevices(string domain);
+    private static extern void GetDetectableDevices(string domain);
     [DllImport("plux_unity_interface")]
-    private static extern System.IntPtr GetAllDetectableDevices();
+    private static extern void GetAllDetectableDevices();
     [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDeviceType();
     [DllImport("plux_unity_interface")]
@@ -60,7 +60,7 @@ public class PluxDeviceManager
     private Thread MainThread;
     private ScanResults ScanResultsCallback;
     private ConnectionDone ConnectionDoneCallback;
-    private List<String> PluxDevsFound;
+    private static Lazy<List<String>> PluxDevsFound = null;
     private bool DeviceConnected = false;
     private int SamplingRate;
     private string ActiveChannelsStr = "";
@@ -78,6 +78,7 @@ public class PluxDeviceManager
     public PluxDeviceManager(ScanResults scanResultsCallback, ConnectionDone connectionDoneCallback)
     {
         LazyObject = new Lazy<BufferAcqSamples>(InitBufferedSamplesObject);
+        PluxDevsFound = new Lazy<List<String>>(InitiListDevFound);
 
         // exceptionPointer -> Pointer to the callback function that will be used to send/communicate information about exceptions generated inside this .dll
         //                     The exception code and description will be sent to Unity where an appropriate action can take place.
@@ -372,6 +373,13 @@ public class PluxDeviceManager
                         }
                     }
                 }
+                else if (exceptionCode == 777) // Receiving devices found during scan.
+                {
+                    // Store list of found devices in a global variable shared between threads.
+                    Debug.Log("Receiving Device: " + exceptionDescription);
+                    List<String> devicesFound = PluxDevsFound.Value;
+                    devicesFound.Add(exceptionDescription);
+                }
                 else
                 {
                     Debug.Log("A new C++ exception was found...");
@@ -510,33 +518,22 @@ public class PluxDeviceManager
         {
             // Search for BLE and BTH devices.
             List<string> listDevices = new List<string>();
+            List<String> devicesFound = PluxDevsFound.Value;
+
+            // Clear previous content of the device list.
+            devicesFound.Clear();
             for (int domainNbr = 0; domainNbr < domains.Count; domainNbr++)
             {
                 // List of available Devices.
-                System.IntPtr listDevicesByDomain = GetDetectableDevices(domains[domainNbr]);
-                List<System.IntPtr> listDevicesByType = new List<IntPtr>() {listDevicesByDomain};
-
-                for (int k = 0; k < listDevicesByType.Count; k++)
-                {
-                    // Convert listDevices (in a String format) to an array.
-                    string[] tempListDevices = Marshal.PtrToStringAnsi(listDevicesByType[k]).Split('&');
-
-                    // Add elements to the returnable list.
-                    for (int i = 0; i < tempListDevices.Length - 1; i++)
-                    {
-                        listDevices.Add(tempListDevices[i]);
-                    }
-                }
+                GetDetectableDevices(domains[domainNbr]);
             }
 
-            // Store list of found devices in a global variable shared between threads.
-            this.PluxDevsFound = listDevices;
-
             // Send data (list of devices found) to the MAIN THREAD.
-            UnityThreadHelper.Dispatcher.Dispatch(() => ScanResultsCallback(this.PluxDevsFound));
+            UnityThreadHelper.Dispatcher.Dispatch(() => ScanResultsCallback(devicesFound));
         }
         catch (ExecutionEngineException exc)
         {
+            Debug.Log("Exception found while scanning: \n" + exc.Message + "\n" + exc.StackTrace);
             BufferAcqSamples bufferedSamples = LazyObject.Value;
             lock (bufferedSamples)
             {
@@ -764,5 +761,11 @@ public class PluxDeviceManager
     {
         BufferAcqSamples lazyComponent = new BufferAcqSamples();
         return lazyComponent;
+    }
+
+    static List<String> InitiListDevFound()
+    {
+        List<String> devFound = new List<string>();
+        return devFound;
     }
 }

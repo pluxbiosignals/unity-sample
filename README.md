@@ -25,6 +25,12 @@ Some questions can be enlightened, such as:
 
 +	Currently, **Bluetooth Low Energy** (BLE) devices are supported by the **Sample APP**, however, you should use the approved [**BLE dongle D 112**](https://plux.info/accessories/207-bitalino-proven-ble-dongle-810121502.html?search_query=ble+dongle&results=38).
 
+## Auxiliary Packages
+
+**UnityThreadHelper** | https://assetstore.unity.com/packages/tools/unitythreadhelper-3847
+
+**Code Monkey Utils** | https://www.youtube.com/playlist?list=PLzDRvYVwl53v5ur4GluoabyckImZz3TVQ
+
 ## How to Use It
 
 The provided project folder is a ready to use Unity solution, you simply need to access the cloned folder through Unity interface.
@@ -63,8 +69,8 @@ For this purpose, you simply need to invoke the available [Methods](#Methods).
 -	[PluxDeviceManager.StartAcquisitionByNbrUnity](#StartAcquisitionByNbrUnity)
 -	[PluxDeviceManager.StartAcquisitionMuscleBanUnity](#StartAcquisitionMuscleBanUnity)
 -	[PluxDeviceManager.StopAcquisitionUnity](#StopAcquisitionUnity)
--	[PluxDeviceManager.GetPackageOfData [v1]](#GetPackageOfData-[v1])
--	[PluxDeviceManager.GetPackageOfData [v2]](#GetPackageOfData-[v2])
+-	[PluxDeviceManager.GetPackageOfData [v1]](#GetPackageOfData-v1)
+-	[PluxDeviceManager.GetPackageOfData [v2]](#GetPackageOfData-v2)
 -	[PluxDeviceManager.GetDetectableDevicesUnity](#GetDetectableDevicesUnity)
 -	[PluxDeviceManager.SetCallbackHandler](#SetCallbackHandler)
 -	[PluxDeviceManager.GetNbrChannelsUnity](#GetNbrChannelsUnity)
@@ -118,7 +124,7 @@ Taking ADC stage into consideration, while starting a real-time acquisition, sel
 ### Parameters
 
 +	**samplingRate** `int`: Desired sampling rate that will be used during the data acquisition stage. The used units are in Hz (samples/s).
-+	**listChannels** `List\<int>`: A list where it can be specified the active channels. Each entry contains a port number of an active channel.
++	**listChannels** `List<int>`: A list where it can be specified the active channels. Each entry contains a port number of an active channel.
 +	**resolution** `int`: Analog-to-Digital Converter (ADC) resolution. This parameter defines how precise are the digital sampled values when compared with the ideal real case scenario.
 
 ## StartAcquisitionByNbrUnity
@@ -157,7 +163,7 @@ The main difference on the inputs of this function in comparison with `StartAcqu
 ### Parameters
 
 +	**samplingRate** `int`: Desired sampling rate that will be used during the data acquisition stage. The used units are in Hz (samples/s).
-+	**listChannels** `List\<int>`: A list where it can be specified the active channels. Each entry contains a port number of an active channel.
++	**listChannels** `List<int>`: A list where it can be specified the active channels. Each entry contains a port number of an active channel.
 +	**resolution** `int`: Analog-to-Digital Converter (ADC) resolution. This parameter defines how precise are the digital sampled values when compared with the ideal real case scenario.
 +	**freqDivisor** `int`: Frequency divisor, i.e., acquired data will be subsampled accordingly to this parameter. If freqDivisor = 10, it means that each set of 10 acquired samples will trigger the communication of a single sample (through the communication loop).
 
@@ -198,7 +204,7 @@ The **PluxDeviceManager** class ensures the storage of the received packages of 
 ### Parameters
 
 +	**channelNbr** `int`: Number of the channel under analysis (from which the sample will be retrieved).
-+	**activeChannelsMask** `List\<int>`: List containing set of active channels.
++	**activeChannelsMask** `List<int>`: List containing set of active channels.
 +	**rebootMemory** `bool`: When **true** the stored data inside **BufferedSamples** object is re-initialized.
 
 ### Returned Values
