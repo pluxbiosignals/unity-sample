@@ -57,7 +57,6 @@ public class PluxDeviceManager
     private Thread ScanningThread;
     private Thread ConnectionThread;
     private Thread AcquisitionThread;
-    private Thread MainThread;
     private ScanResults ScanResultsCallback;
     private ConnectionDone ConnectionDoneCallback;
     private static Lazy<List<String>> PluxDevsFound = null;
@@ -258,13 +257,6 @@ public class PluxDeviceManager
     // Trigger the start of the communication loop (between PLUX device and computer).
     private void StartLoopUnity()
     {
-        // Storage of a reference to the main thread.
-        if (MainThread == null)
-        {
-            MainThread = Thread.CurrentThread;
-            MainThread.Name = "MAIN";
-        }
-
         // Creation of new thread to manage the communication loop.
         AcquisitionThread = new Thread(StartLoop);
         AcquisitionThread.Name = "ACQUISITION_" + currThreadNumber;
