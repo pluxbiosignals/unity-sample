@@ -17,6 +17,8 @@ public class PluxDeviceManager
     private static extern void PluxDevUnity(string macAddress);
     [DllImport("plux_unity_interface")]
     private static extern void DisconnectPluxDevUnity();
+    [DllImport("plux_unity_interface", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void StartAcquisitionBySources(int samplingRate, [In] IntPtr sourcesArray, int nbrSources);
     [DllImport("plux_unity_interface")]
     private static extern void StartAcquisitionByNbr(int samplingRate, int numberOfChannel, int resolution);
     [DllImport("plux_unity_interface")]
@@ -42,9 +44,40 @@ public class PluxDeviceManager
     [DllImport("plux_unity_interface")]
     private static extern void GetAllDetectableDevices();
     [DllImport("plux_unity_interface")]
+    private static extern int GetProductId();
+    [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDeviceType();
     [DllImport("plux_unity_interface")]
     private static extern void SetCommunicationHandler(FPtrUnity handlerFunction);
+
+    // Declaration of a the Plux::Source structure shared with the .dll.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PluxSource
+    {
+        public int port;
+        public int freqDivisor;
+        public int nBits;
+        public int chMask;
+        public int serialNum;
+        public bool isPluxSrc;
+
+        // Constructor responsible for the creation of a Plux::Source.
+        // port -> Source port (1...8 for analog ports). Default value is zero.
+        // freqDivisor -> Source frequency divisor from acquisition base frequency (>= 1). Default value is 1.
+        // nBits -> Source sampling resolution in bits (8 or 16). Default value is 16.
+        // chMask -> Bitmask of source channels to sample (bit 0 is channel 0, etc). Default value is 1 (channel 0 only).
+        // serialNum -> Source serial number (reserved, must be zero). Default value is zero.
+        // isPluxSrc -> Auxiliar flag [currently not being used].
+        public PluxSource(int port = 0, int freqDivisor = 1, int nBits = 16, int chMask = 1, int serialNum = 0, bool isPluxSrc=true)
+        {
+            this.port = port;
+            this.freqDivisor = freqDivisor;
+            this.nBits = nBits;
+            this.chMask = chMask;
+            this.serialNum = serialNum;
+            this.isPluxSrc = isPluxSrc;
+        }
+    }
 
     // Delegates (needed for callback purposes).
     public delegate bool FPtr(int nSeq, int[] dataIn, int dataInSize);
@@ -153,6 +186,43 @@ public class PluxDeviceManager
         }
     }
 
+    // Class method used to Start a Real-Time acquisition through Plux::Source configuration:
+    // samplingRate -> Desired sampling rate that will be used during the data acquisition stage.
+    //                 The used units are in Hz (samples/s)
+    // sourcesArray -> List of Sources that define which channels are active and its internal configurations, 
+    //				   namely the resolution and frequency divisor.
+    public void StartAcquisitionBySourcesUnity(int samplingRate, PluxSource[] sourcesArray)
+    {
+        // Reboot BufferedSamples object.
+        BufferAcqSamples bufferedSamples = LazyObject.Value;
+        lock (bufferedSamples)
+        {
+            bufferedSamples.reinitialise();
+        }
+
+        if (!bufferedSamples.getUncaughtExceptionState())
+        {
+            // >>> Garbage collector memory management.
+            GCHandle pinnedArray = GCHandle.Alloc(sourcesArray, GCHandleType.Pinned);
+            // >>> Convert to a memory address.
+            IntPtr ptr = pinnedArray.AddrOfPinnedObject();
+            // >>> Call correspondent .dll method to start the real-time acquisition.
+            StartAcquisitionBySources(samplingRate, ptr, sourcesArray.Length);
+            // >>> Releasing memory.
+            pinnedArray.Free();
+
+            // Start Communication Loop.
+            StartLoopUnity();
+        }
+        else
+        {
+            throw new Exception("Unable to start a real-time acquisition. It is probable that the connection between the computer and the PLUX device was broke");
+        }
+
+        // Update global flag.
+        AcquisitionStopped = false;
+    }
+
     // Class method used to Start a Real-Time acquisition:
     // samplingRate -> Desired sampling rate that will be used during the data acquisition stage.
     //                 The used units are in Hz (samples/s)
@@ -165,7 +235,7 @@ public class PluxDeviceManager
     public void StartAcquisitionUnity(int samplingRate, List<int> listChannels, int resolution)
     {
         // Conversion of List of active channels to a string format.
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 11; i++)
         {
             if (listChannels.Contains(i + 1))
             {
@@ -558,6 +628,12 @@ public class PluxDeviceManager
     public int GetBatteryUnity()
     {
         return GetBattery();
+    }
+
+    // "Getting" method intended to check the product ID of the connected device.
+    public int GetProductIdUnity()
+    {
+        return GetProductId();
     }
 
     // "Getting" method intended to check the type of the connected device.

@@ -68,6 +68,7 @@ For this purpose, you simply need to invoke the available [Methods](#Methods).
 -	[PluxDeviceManager.PluxDev](#PluxDev)
 -	[PluxDeviceManager.DisconnectPluxDev](#DisconnectPluxDev)
 -	[PluxDeviceManager.StartAcquisitionUnity](#StartAcquisitionUnity)
+-	[PluxDeviceManager.StartAcquisitionBySourcesUnity](#StartAcquisitionBySourcesUnity)
 -	[PluxDeviceManager.StartAcquisitionByNbrUnity](#StartAcquisitionByNbrUnity)
 -	[PluxDeviceManager.StartAcquisitionMuscleBanUnity](#StartAcquisitionMuscleBanUnity)
 -	[PluxDeviceManager.StopAcquisitionUnity](#StopAcquisitionUnity)
@@ -128,6 +129,70 @@ Taking ADC stage into consideration, while starting a real-time acquisition, sel
 +	**samplingRate** `int`: Desired sampling rate that will be used during the data acquisition stage. The used units are in Hz (samples/s).
 +	**listChannels** `List<int>`: A list where it can be specified the active channels. Each entry contains a port number of an active channel.
 +	**resolution** `int`: Analog-to-Digital Converter (ADC) resolution. This parameter defines how precise are the digital sampled values when compared with the ideal real case scenario.
+
+## StartAcquisitionBySourcesUnity
+
+Class method used to start a real-time acquisition at the device paired with the computer through `PluxDev` method.
+
+```csharp
+void void StartAcquisitionBySourcesUnity(int samplingRate, PluxSource[] sourcesArray)
+```
+
+### Description
+
+The current methods is responsible to trigger real-time acquisitions with analogical **AND** digital sensors, through the creation of an array containing `PluxSource` elements.
+Each source is responsible for the configuration of a specific **port** of the **PLUX** device being used.
+
+To create a new `PluxSource` the following constructor must be used:
+
+```csharp
+// port -> Source port (1...8 for analog ports). Default value is zero.
+// freqDivisor -> Source frequency divisor from acquisition base frequency (>= 1). Default value is 1.
+// nBits -> Source sampling resolution in bits (8 or 16). Default value is 16.
+// chMask -> Bitmask of source channels to sample (bit 0 is channel 0, etc). Default value is 1 (channel 0 
+//           only). For a digital port if chMask=0x0F it means that channels 1-4 are active (0000 1111).
+// serialNum -> Source serial number (reserved, must be zero). Default value is zero.
+// isPluxSrc -> Auxiliar flag [currently not being used].
+public PluxSource(int port, int freqDivisor, int nBits, int chMask, int serialNum, bool isPluxSrc)
+```
+
+Some practical examples are presented in the following code blocks:
+
+**\[bisignalsplux\]**
+
+```csharp
+// Starting a real-time acquisition from:
+// >>> biosignalsplux [CH1 and CH8 active | resolution=16 bits]
+List<PluxDeviceManager.PluxSource> pluxSources = new List<PluxDeviceManager.PluxSource>();
+pluxSources.Add(new PluxDeviceManager.PluxSource(1, 1, 16, 0x01));
+pluxSources.Add(new PluxDeviceManager.PluxSource(8, 1, 16, 0x01));
+
+// Being PluxDevManager the instance of our PluxDeviceManager class.
+// sampling rate = 1000 Hz
+PluxDevManager.StartAcquisitionBySourcesUnity(1000, pluxSources.ToArray());
+```
+
+**\[fNIRS Explorer\]**
+
+```csharp
+// Starting a real-time acquisition from:
+// >>> fNIRS Explorer [Full set of SpO2 and Accelerometer channels]
+List<PluxDeviceManager.PluxSource> pluxSources = new List<PluxDeviceManager.PluxSource>();
+// [SpO2 Port (4 channels - 0x0F > 0000 1111)]
+pluxSources.Add(new PluxDeviceManager.PluxSource(9, 1, 16, 0x0F));
+
+// [ACC Port (3 channels - 0x07 > 0000 0111)]
+pluxSources.Add(new PluxDeviceManager.PluxSource(11, 1, 16, 0x07));
+
+// Being PluxDevManager the instance of our PluxDeviceManager class.
+// sampling rate = 1000 Hz
+PluxDevManager.StartAcquisitionBySourcesUnity(1000, pluxSources.ToArray());
+```
+
+### Parameters
+
++	**samplingRate** `int`: Desired sampling rate that will be used during the data acquisition stage. The used units are in Hz (samples/s).
++	**sourcesArray** `PluxSource[]`: A list of `PluxSource` elements that define which channels are active and its internal configurations, namely the resolution and frequency divisor.
 
 ## StartAcquisitionByNbrUnity
 

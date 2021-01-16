@@ -20,6 +20,7 @@ namespace Assets.Scripts
         // [Graphical User Interface Objects]
         public Dropdown DeviceDropdown;
         public Button StartButton;
+        public Button StartBySrcButton;
         public Button StopButton;
         public Button ScanButton;
         public Button AboutButton;
@@ -266,16 +267,18 @@ namespace Assets.Scripts
 
                     // Disable channel selection buttons.
                     CH1Toggle.interactable = false;
-                    CH2Toggle.interactable = false;
-                    CH3Toggle.interactable = false;
-                    CH4Toggle.interactable = false;
-                    CH5Toggle.interactable = false;
-                    CH6Toggle.interactable = false;
-                    CH7Toggle.interactable = false;
-                    CH8Toggle.interactable = false;
+                    CH1Toggle.isOn = true;
+                    // Change the toggle state.
+                    List<Toggle> toggleList = new List<Toggle>(){ CH2Toggle, CH3Toggle, CH4Toggle, CH5Toggle, CH6Toggle, CH7Toggle, CH8Toggle};
+                    foreach (Toggle toggleBtn in toggleList)
+                    {
+                        toggleBtn.interactable = false;
+                        toggleBtn.isOn = false;
+                    }
 
                     // Disable Start and Device Configuration buttons.
                     StartButton.interactable = false;
+                    StartBySrcButton.interactable = false;
 
                     // Disable the battery icons.
                     List<GameObject> ListBatteryIcons = new List<GameObject>() { BatteryIcon0, BatteryIcon10, BatteryIcon50, BatteryIcon100 };
@@ -386,6 +389,7 @@ namespace Assets.Scripts
 
                     // Disable Start Button.
                     StartButton.interactable = false;
+                    StartBySrcButton.interactable = false;
 
                     // Hide PlotIcon and show AcquiringIcon.
                     PlotIcon.SetActive(false);
@@ -426,6 +430,113 @@ namespace Assets.Scripts
                 // Hide object after 5 seconds.
                 StartCoroutine(RemoveAfterSeconds(5, ConnectInfoPanel));
                    
+                // Reboot interface.
+                ConnectButtonFunction(true);
+            }
+
+        }
+
+        // Function invoked during the onClick event of "StartBySrcButton".
+        public void StartBySrcButtonFunction()
+        {
+            try
+            {
+                // Get Device Configuration input values.
+                SamplingRate = Int32.Parse(SamplingRateInput.text);
+                int resolution = Int32.Parse(ResolutionDropDownOptions[ResolutionDropdown.value]);
+
+                // Update graphical window size variable (the plotting zone should contain 10 seconds of data).
+                GraphWindSize = SamplingRate * 10;
+                WindowInMemorySize = Convert.ToInt32(1.1 * GraphWindSize);
+
+                // Number of Active Channels.
+                int nbrChannels = 0;
+                Toggle[] toggleArray = new Toggle[]
+                    {CH1Toggle, CH2Toggle, CH3Toggle, CH4Toggle, CH5Toggle, CH6Toggle, CH7Toggle, CH8Toggle};
+                MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
+                List<PluxDeviceManager.PluxSource> pluxSources = new List<PluxDeviceManager.PluxSource>();
+                for (int i = 0; i < toggleArray.Length; i++)
+                {
+                    if (toggleArray[i].isOn == true)
+                    {
+                        // Preparation of a string that will be communicated to our .dll
+                        // This string will be formed by "1" or "0" characters, identifying sequentially which channels are active or not.
+                        ActiveChannels.Add(i + 1);
+
+                        // Definition of the first active channel.
+                        if (VisualizationChannel == -1)
+                        {
+                            VisualizationChannel = i + 1;
+
+                            // Update the label with the Current Channel Number.
+                            CurrentChannel.text = "CH" + VisualizationChannel;
+                        }
+
+                        nbrChannels++;
+
+                        // Add a new Plux::Source.
+                        pluxSources.Add(new PluxDeviceManager.PluxSource(i + 1, 1, resolution, 0x01));
+                    }
+
+                    // Dictionary that stores all the data received from .dll API.
+                    MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
+                }
+
+                // Check if at least one channel is active.
+                if (ActiveChannels.Count != 0)
+                {
+                    // Start of Acquisition.
+                    PluxDevManager.StartAcquisitionBySourcesUnity(SamplingRate, pluxSources.ToArray());
+
+                    // Enable StopButton.
+                    StopButton.interactable = true;
+
+                    // Disable ConnectButton.
+                    ConnectButton.interactable = false;
+
+                    // Disable Start Button.
+                    StartBySrcButton.interactable = false;
+                    StartButton.interactable = false;
+
+                    // Hide PlotIcon and show AcquiringIcon.
+                    PlotIcon.SetActive(false);
+                    TransparencyLevel.SetActive(false);
+                    //AcquiringIcon.SetActive(true);
+
+                    // Hide panel with the "Change Channel" button.
+                    SelectedChannelPanel.SetActive(true);
+                    if (ActiveChannels.Count == 1)
+                    {
+                        ChangeChannel.interactable = false;
+                    }
+                    else
+                    {
+                        ChangeChannel.interactable = true;
+                    }
+
+                    // Disable About Button to avoid entering a new scene during the acquisition.
+                    AboutButton.interactable = false;
+                }
+                else
+                {
+                    // Show Info Message.
+                    ChannelSelectioInfoPanel.SetActive(true);
+
+                    // Hide object after 5 seconds.
+                    StartCoroutine(RemoveAfterSeconds(5, ChannelSelectioInfoPanel));
+                }
+            }
+            catch (Exception exc)
+            {
+                // Exception info.
+                Debug.Log("Exception: " + exc.Message + "\n" + exc.StackTrace);
+
+                // Show info message.
+                ConnectInfoPanel.SetActive(true);
+
+                // Hide object after 5 seconds.
+                StartCoroutine(RemoveAfterSeconds(5, ConnectInfoPanel));
+
                 // Reboot interface.
                 ConnectButtonFunction(true);
             }
@@ -654,6 +765,7 @@ namespace Assets.Scripts
 
                 // Enable channel selection buttons accordingly to the type of device.
                 string devType = PluxDevManager.GetDeviceTypeUnity();
+                Debug.Log("Product ID: " + PluxDevManager.GetProductIdUnity());
                 if (devType == "MuscleBAN BE Plux")
                 {
                     CH1Toggle.interactable = true;
@@ -723,6 +835,12 @@ namespace Assets.Scripts
 
                 // Enable Start and Device Configuration buttons.
                 StartButton.interactable = true;
+                
+                // Disable "Start by Sources" button if the device is a BITalino.
+                if (PluxDevManager.GetDeviceTypeUnity() != "BITalino")
+                {
+                    StartBySrcButton.interactable = true;
+                }
 
                 // Disable Connect Button.
                 //ConnectButton.interactable = false;
