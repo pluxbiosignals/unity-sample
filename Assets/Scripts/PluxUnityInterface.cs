@@ -457,7 +457,7 @@ namespace Assets.Scripts
                 List<PluxDeviceManager.PluxSource> pluxSources = new List<PluxDeviceManager.PluxSource>();
                 for (int i = 0; i < toggleArray.Length; i++)
                 {
-                    if (toggleArray[i].isOn == true)
+                    if (toggleArray[i].isOn == true || PluxDevManager.GetProductIdUnity() == 542)
                     {
                         // Preparation of a string that will be communicated to our .dll
                         // This string will be formed by "1" or "0" characters, identifying sequentially which channels are active or not.
@@ -475,12 +475,25 @@ namespace Assets.Scripts
                         nbrChannels++;
 
                         // Add a new Plux::Source.
-                        pluxSources.Add(new PluxDeviceManager.PluxSource(i + 1, 1, resolution, 0x01));
+                        if (PluxDevManager.GetProductIdUnity() != 542) // Clause applicable only for non fNIRS Explorer systems.
+                        {
+                            pluxSources.Add(new PluxDeviceManager.PluxSource(i + 1, 1, resolution, 0x01));
+                        }
+                        else if (PluxDevManager.GetProductIdUnity() == 542 && i == toggleArray.Length - 1) // Configuring sources if we are dealing with a fNIRS Explorer system.
+                        {
+                            // >>> fNIRS Explorer [Full set of SpO2 and Accelerometer channels]
+                            // [SpO2 Port (4 channels - 0x0F > 0000 1111)]
+                            pluxSources.Add(new PluxDeviceManager.PluxSource(9, 1, resolution, 0x0F));
+
+                            // [ACC Port (3 channels - 0x07 > 0000 0111)]
+                            pluxSources.Add(new PluxDeviceManager.PluxSource(11, 1, resolution, 0x07));
+                        }
                     }
 
                     // Dictionary that stores all the data received from .dll API.
                     MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
                 }
+
 
                 // Check if at least one channel is active.
                 if (ActiveChannels.Count != 0)
@@ -828,7 +841,7 @@ namespace Assets.Scripts
                     //Add the options created in the List above
                     ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
                 }
-                else
+                else if (PluxDevManager.GetProductIdUnity() != 542) // If the device is not a fNIRS Explorer then we are dealing with a not supported system.
                 {
                     throw new NotSupportedException();
                 }
