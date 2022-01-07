@@ -75,10 +75,10 @@ For this purpose, you simply need to invoke the available [Methods](#Methods).
 -	[PluxDeviceManager.GetPackageOfData [v1]](#GetPackageOfData-v1)
 -	[PluxDeviceManager.GetPackageOfData [v2]](#GetPackageOfData-v2)
 -	[PluxDeviceManager.GetDetectableDevicesUnity](#GetDetectableDevicesUnity)
--	[PluxDeviceManager.SetCallbackHandler](#SetCallbackHandler)
 -	[PluxDeviceManager.GetNbrChannelsUnity](#GetNbrChannelsUnity)
 -	[PluxDeviceManager.GetBatteryUnity](#GetBatteryUnity)
 -	[PluxDeviceManager.GetDeviceTypeUnity](#GetDeviceTypeUnity)
+-	[PluxDeviceManager.SetParameter](#SetParameter)
 
 ## PluxDev
 
@@ -388,6 +388,32 @@ The possible values are `"biosignalsplux"`, `"BITalino"` or `"MuscleBAN BE Plux"
 ### Returned Values
 
 A string that identifies which **PLUX** device is currently connected to the computer.
+
+## SetParameter
+
+"Setting" method intended to define the value of a specific parameter in the PLUX device connected with the computer or its sensors.
+
+```csharp
+void SetParameter(int port, int index, int[] data)
+```
+
+### Description
+
+With the `SetParameter` method, the developer has the possibility of customizing system specific variables (in the PLUX device) or sensor parameters, for example, the intensity of the **RED** and **INFRARED** LEDs included in the **fNIRS** sensor. 
+
+**\[Definition of LED Intensity on the fNIRS/SpO2 Sensor\]**
+
+```csharp
+// Configure SpO2 channel intensity if dealing with fNIRS Explorer port/chnMask.
+int[] ledParam = { 80, 40 }; // Percentage values.
+PluxDevManager.SetParameter(0x09, 0x03, ledParam); // update oximeter LED values (Red and IR)
+```
+
+### Parameters
+
++	**port** `int`: Sensor port number for a sensor parameter, or **zero** for a system parameter.
++	**index** `const void`: Index of the parameter to set within the sensor or system.
++	**data** `int[]`: List containing the values to assign to the parameter under analysis.
 
 ## Support
 If you find any problem during your experience, please, feel free to create a new issue track on our repository.

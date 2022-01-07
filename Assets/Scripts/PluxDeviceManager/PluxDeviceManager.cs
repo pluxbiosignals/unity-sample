@@ -49,6 +49,8 @@ public class PluxDeviceManager
     private static extern System.IntPtr GetDeviceType();
     [DllImport("plux_unity_interface")]
     private static extern void SetCommunicationHandler(FPtrUnity handlerFunction);
+    [DllImport("plux_unity_interface")]
+    private static extern void SetParameter(int port, int index, [In] IntPtr data, int dataLen);
 
     // Declaration of a the Plux::Source structure shared with the .dll.
     [StructLayout(LayoutKind.Sequential)]
@@ -58,8 +60,6 @@ public class PluxDeviceManager
         public int freqDivisor;
         public int nBits;
         public int chMask;
-        public int serialNum;
-        public bool isPluxSrc;
 
         // Constructor responsible for the creation of a Plux::Source.
         // port -> Source port (1...8 for analog ports). Default value is zero.
@@ -68,14 +68,12 @@ public class PluxDeviceManager
         // chMask -> Bitmask of source channels to sample (bit 0 is channel 0, etc). Default value is 1 (channel 0 only).
         // serialNum -> Source serial number (reserved, must be zero). Default value is zero.
         // isPluxSrc -> Auxiliar flag [currently not being used].
-        public PluxSource(int port = 0, int freqDivisor = 1, int nBits = 16, int chMask = 1, int serialNum = 0, bool isPluxSrc=true)
+        public PluxSource(int port = 0, int freqDivisor = 1, int nBits = 16, int chMask = 1)
         {
             this.port = port;
             this.freqDivisor = freqDivisor;
             this.nBits = nBits;
             this.chMask = chMask;
-            this.serialNum = serialNum;
-            this.isPluxSrc = isPluxSrc;
         }
     }
 
@@ -610,6 +608,22 @@ public class PluxDeviceManager
     {
         callbackPointer = new CallbackManager(callbackHandler);
         return true;
+    }
+
+    // "Setting" method intended to define the value of a specific parameter. the type of the connected device.
+    // port -> Sensor port number for a sensor parameter, or zero for a system parameter.
+    // index -> Index of the parameter to set within the sensor or system.
+    // data -> List containing the values to assign to the parameter under analysis.
+    public void SetParameter(int port, int index, int[] data)
+    {
+        // >>> Garbage collector memory management.
+        GCHandle pinnedArray = GCHandle.Alloc(data, GCHandleType.Pinned);
+        // >>> Convert to a memory address.
+        IntPtr ptr = pinnedArray.AddrOfPinnedObject();
+        // >>> Call correspondent .dll method to set the parameter value.
+        SetParameter(port, index, ptr, data.Length);
+        // >>> Releasing memory.
+        pinnedArray.Free();
     }
 
     // "Getting" method for determination of the number of used channels during the acquisition.
