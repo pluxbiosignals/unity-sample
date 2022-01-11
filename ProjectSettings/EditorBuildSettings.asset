@@ -5,10 +5,7 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
-    path: Assets/Scenes/PluxUnityInterface.unity
-    guid: f4329f1559df0ba44832502c928e8eda
-  - enabled: 1
-    path: Assets/Scenes/AboutWindow.unity
-    guid: cdef31c9bfe1364448e0fe40f157dd51
+  - enabled: 0
+    path: 
+    guid: 00000000000000000000000000000000
   m_configObjects: {}

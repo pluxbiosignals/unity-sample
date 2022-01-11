@@ -1,6 +1,6 @@
 # PLUX Unity API \[Windows] | Sample APP
 The **Sample APP** contained inside this repository provides a practical and intuitive resource to explore the integration of the signal acquisition devices
-commercialized by **PLUX** ([**biosignalsplux**](https://www.biosignalsplux.com/en/), [**BITalino**](https://bitalino.com/en/)...) with the powerful 
+commercialized by **PLUX** ([**biosignalsplux**](https://biosignalsplux.com/products/kits/professional.html), [**biosignalsplux Hybrid-8**](https://biosignalsplux.com/products/kits/hybrid-8.html)...) with the powerful 
 development environment of **Unity**.
 
 Some questions can be enlightened, such as:
@@ -23,13 +23,11 @@ Some questions can be enlightened, such as:
 
 ## Limitations
 
-+	Currently, **Bluetooth Low Energy** (BLE) devices are supported by the **Sample APP**, however, you should use the approved [**BLE dongle D 112**](https://plux.info/accessories/207-bitalino-proven-ble-dongle-810121502.html?search_query=ble+dongle&results=38).
++	Currently, only **biosignalsplux** and **biosignalsplux Hybrid-8** devices are supported by the **Lite** version of the Sample APP.
 
 ## Auxiliary Packages
 
 **UnityThreadHelper** | https://assetstore.unity.com/packages/tools/unitythreadhelper-3847
-
-**Code Monkey Utils** | https://www.youtube.com/playlist?list=PLzDRvYVwl53v5ur4GluoabyckImZz3TVQ
 
 ## How to Use It
 
@@ -37,7 +35,7 @@ The provided project folder is a ready to use Unity solution, you simply need to
 
 On the following animation we can quickly show the main functionalities of our **Sample APP**:
 
-![sample-app-animation.gif](https://i.postimg.cc/7YsBQ8jf/sample-app-animation.gif)
+![sample-app-animation.gif](https://i.postimg.cc/P5HZ1k35/unity-sample-app-lite-demo.gif)
 
 ## How to Easily Integrate the API in your Unity Project?
 1.	Copy the **plux_unity_interface.dll** to the **Plugins** folder of your Unity project. The location of this file will depend on the desired Operating System Architecture (x86 or x86_64): `plux-api-unity-sample/Assets/Plugins/x86/plux_unity_interface.dll` **\[32 bits]** or `plux-api-unity-sample/Assets/Plugins/x86_64/plux_unity_interface.dll` **\[64 bits]**

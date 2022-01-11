@@ -577,6 +577,9 @@ public class PluxDeviceManager
             AcquisitionThread = null;
         }
 
+        // Clear the buffer containing the packages of collected data.
+        RebootDataBuffer();
+
         return forceFlag;
     }
 
@@ -841,6 +844,20 @@ public class PluxDeviceManager
         public bool getUncaughtExceptionState()
         {
             return uncaugthException;
+        }
+    }
+
+    /**
+     * Auxiliary method used to reboot the buffer responsible for storing the packages of collected data.
+     */
+    public void RebootDataBuffer()
+    {
+        // Clear the buffer containing the packages of collected data.
+        // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
+        BufferAcqSamples bufferedSamples = LazyObject.Value;
+        lock (bufferedSamples)
+        {
+            bufferedSamples.reboot();
         }
     }
 
