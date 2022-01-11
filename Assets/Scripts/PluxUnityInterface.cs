@@ -26,6 +26,8 @@ namespace Assets.Scripts
         public Button AboutButton;
         public Button ConnectButton;
         public Button ChangeChannel;
+        public Button LedConfigButton;
+        public Button ReturnDevConfButton;
         public InputField SamplingRateInput;
         public InputField ResolutionInput;
         public Dropdown ResolutionDropdown;
@@ -39,12 +41,18 @@ namespace Assets.Scripts
         public Toggle CH8Toggle;
         public Toggle BTHToggle;
         public Toggle BLEToggle;
+        public Dropdown ChannelLedDropdown;
+        public Slider RedLedSlider;
+        public Slider InfraredLedSlider;
+        public GameObject DeviceConfPanel;
+        public GameObject LedConfigPanel;
         public GameObject SamplingRateInfoPanel;
         public GameObject SelectedChannelPanel;
         public GameObject ChannelSelectioInfoPanel;
         public GameObject ConnectInfoPanel;
         public GameObject BluetoothInfoPanel;
         public GameObject BLESamplingRateInfoPanel;
+        public GameObject Hybrid8SamplingRateInfoPanel;
         public GameObject BatteryIconUnknown;
         public GameObject BatteryIcon0;
         public GameObject BatteryIcon10;
@@ -55,9 +63,13 @@ namespace Assets.Scripts
         public GameObject GreenFlag;
         public GameObject RedFlag;
         public GameObject TransparencyLevel;
+        public Image RedLedGuideCircle;
+        public Image InfraredLedGuideCircle;
         public Text ConnectText;
         public Text BatteryLevel;
         public Text CurrentChannel;
+        public Text RedIntensityText;
+        public Text InfraredIntensityText;
         public RectTransform GraphContainer;
         [SerializeField] public Sprite DotSprite;
         public WindowGraph GraphZone;
@@ -82,6 +94,9 @@ namespace Assets.Scripts
         public int WindowInMemorySize;
         public bool UpdatePlotFlag = false;
         public string SelectedDevice = "";
+        public int[] redLedIntensities = new int[8] {80, 80, 80, 80, 80, 80, 80, 80};
+        public int[] infraredLedIntensities = new int[8] { 40, 40, 40, 40, 40, 40, 40, 40 };
+        public bool startBySrc = false;
 
 
         // Awake is called when the script instance is being loaded.
@@ -261,9 +276,14 @@ namespace Assets.Scripts
 
                     // Disable "Device Configuration" panel options.
                     SamplingRateInput.interactable = false;
-                    SamplingRateInput.text = "1000";
+                    SamplingRateInput.text = "100";
                     ResolutionInput.interactable = false;
                     ResolutionDropdown.interactable = false;
+                    LedConfigButton.interactable = false;
+
+                    // Return to the "Device Configuration" panel (if the LED intensity configuration panel is currently open).
+                    LedConfigPanel.SetActive(false);
+                    DeviceConfPanel.SetActive(true);
 
                     // Disable channel selection buttons.
                     CH1Toggle.interactable = false;
@@ -327,6 +347,9 @@ namespace Assets.Scripts
         {
             try
             {
+                // Update the value of the flag that identifies when the started acquisition was done by defining sources (true) or not (false).
+                startBySrc = false;
+
                 // Get Device Configuration input values.
                 SamplingRate = Int32.Parse(SamplingRateInput.text);
                 int resolution = Int32.Parse(ResolutionDropDownOptions[ResolutionDropdown.value]);
@@ -441,6 +464,9 @@ namespace Assets.Scripts
         {
             try
             {
+                // Update the value of the flag that identifies when the started acquisition was done by defining sources (true) or not (false).
+                startBySrc = true;
+
                 // Get Device Configuration input values.
                 SamplingRate = Int32.Parse(SamplingRateInput.text);
                 int resolution = Int32.Parse(ResolutionDropDownOptions[ResolutionDropdown.value]);
@@ -453,23 +479,40 @@ namespace Assets.Scripts
                 int nbrChannels = 0;
                 Toggle[] toggleArray = new Toggle[]
                     {CH1Toggle, CH2Toggle, CH3Toggle, CH4Toggle, CH5Toggle, CH6Toggle, CH7Toggle, CH8Toggle};
-                MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
                 List<PluxDeviceManager.PluxSource> pluxSources = new List<PluxDeviceManager.PluxSource>();
+                MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
                 for (int i = 0; i < toggleArray.Length; i++)
                 {
                     if (toggleArray[i].isOn == true || PluxDevManager.GetProductIdUnity() == 542)
                     {
-                        // Preparation of a string that will be communicated to our .dll
-                        // This string will be formed by "1" or "0" characters, identifying sequentially which channels are active or not.
-                        ActiveChannels.Add(i + 1);
+                        // Adding an extra channel if dealing with the biosignalsplux Hybrid-8 scenario.
+                        int chnNbr = i + 1;
+                        if (PluxDevManager.GetProductIdUnity() == 517) // Divergence of the port into two separate channels.
+                        {
+                            chnNbr = (2 * i) + 1;
+                            ActiveChannels.Add(chnNbr);
+                            ActiveChannels.Add(chnNbr + 1);
+                        }
+                        else
+                        {
+                            ActiveChannels.Add(chnNbr);
+                        }
 
                         // Definition of the first active channel.
                         if (VisualizationChannel == -1)
                         {
-                            VisualizationChannel = i + 1;
+                            VisualizationChannel = chnNbr;
 
                             // Update the label with the Current Channel Number.
-                            CurrentChannel.text = "CH" + VisualizationChannel;
+                            if (PluxDevManager.GetProductIdUnity() == 517) // biosignalsplux Hybrid-8 scenario where all channels are considered digital ones.
+                            {
+                                // Update the label with the Current Channel Number.
+                                CurrentChannel.text = "CH" + ((int) Math.Ceiling(chnNbr / 2.0)) + "A";
+                            }
+                            else
+                            {
+                                CurrentChannel.text = "CH" + VisualizationChannel;
+                            }
                         }
 
                         nbrChannels++;
@@ -477,7 +520,21 @@ namespace Assets.Scripts
                         // Add a new Plux::Source.
                         if (PluxDevManager.GetProductIdUnity() != 542) // Clause applicable only for non fNIRS Explorer systems.
                         {
-                            pluxSources.Add(new PluxDeviceManager.PluxSource(i + 1, 1, resolution, 0x01));
+                            // Set LED intensities if the current device is a biosignalsplux Hybrid-8.
+                            if (PluxDevManager.GetProductIdUnity() == 517)
+                            {
+                                // Add new source.
+                                pluxSources.Add(new PluxDeviceManager.PluxSource(i + 1, 1, resolution, 0x03));
+
+                                // Led Intensities.
+                                int[] ledIntensities = new int[2] { redLedIntensities[i], infraredLedIntensities[i] };
+                                PluxDevManager.SetParameter(i + 1, 0x03, ledIntensities);
+                            }
+                            else
+                            {
+                                // Add new source.
+                                pluxSources.Add(new PluxDeviceManager.PluxSource(i + 1, 1, resolution, 0x01));
+                            }
                         }
                         else if (PluxDevManager.GetProductIdUnity() == 542 && i == toggleArray.Length - 1) // Configuring sources if we are dealing with a fNIRS Explorer system.
                         {
@@ -489,9 +546,14 @@ namespace Assets.Scripts
                             pluxSources.Add(new PluxDeviceManager.PluxSource(11, 1, resolution, 0x07));
                         }
                     }
-
                     // Dictionary that stores all the data received from .dll API.
                     MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
+
+                    // Add an extra channel if we are dealing with a Hybrid-8 system.
+                    if (PluxDevManager.GetProductIdUnity() == 517)
+                    {
+                        MultiThreadList.Add(new List<int>(Enumerable.Repeat(0, GraphWindSize).ToList()));
+                    }
                 }
 
 
@@ -556,6 +618,45 @@ namespace Assets.Scripts
 
         }
 
+        // Function invoked during the onChange event of "ChannelLedDropdown".
+        public void ChnLedDropdownChange()
+        {
+            // Update Slider Values.
+            int chnIndex = ChannelLedDropdown.value;
+            RedLedSlider.value = redLedIntensities[chnIndex];
+            InfraredLedSlider.value = infraredLedIntensities[chnIndex];
+        }
+
+        // Function invoked during the onClick event of "LedConfigButton".
+        public void LedConfigButtonFunction()
+        {
+            // Hide the DeviceConfPanel and show the LedConfigPanel instead.
+            DeviceConfPanel.SetActive(false);
+            LedConfigPanel.SetActive(true);
+        }
+
+        // Function invoked during the onClick event of "ReturnDevConfButton".
+        public void ReturnDevConfButtonFunction()
+        {
+            // Hide the LedConfPanel and show the DeviceConfigPanel instead.
+            DeviceConfPanel.SetActive(true);
+            LedConfigPanel.SetActive(false);
+        }
+
+        // Function invoked during the onChange event of "RedLedSlider".
+        public void RedLedSliderFunction()
+        {
+            // Update registry.
+            UpdateLedIntensityCache(RedLedSlider, RedLedGuideCircle, RedIntensityText, redLedIntensities);
+        }
+
+        // Function invoked during the onChange event of "InfraredLedSlider".
+        public void InfraredLedSliderFunction()
+        {
+            // Update registry.
+            UpdateLedIntensityCache(InfraredLedSlider, InfraredLedGuideCircle, InfraredIntensityText, infraredLedIntensities);
+        }
+
         // Function invoked during the onClick event of "StopButton".
         public void StopButtonFunction(int forceStop=0)
         {
@@ -598,6 +699,7 @@ namespace Assets.Scripts
 
             // Hide info message.
             BLESamplingRateInfoPanel.SetActive(false);
+            Hybrid8SamplingRateInfoPanel.SetActive(false);
         }
 
         // Function invoked during the onClick event of the About Button.
@@ -626,7 +728,7 @@ namespace Assets.Scripts
                     SamplingRateInfoPanel.SetActive(true);
 
                     // Place the standard Sampling rate.
-                    SamplingRateInput.text = "1000";
+                    SamplingRateInput.text = "100";
 
                     // Hide object after 5 seconds.
                     StartCoroutine(RemoveAfterSeconds(5, SamplingRateInfoPanel));
@@ -643,6 +745,19 @@ namespace Assets.Scripts
 
                     // Hide object after 5 seconds.
                     StartCoroutine(RemoveAfterSeconds(5, BLESamplingRateInfoPanel));
+                }
+                // Check if we are dealing with a biosignalsplux Hybrid-8 device.
+                else if (Int32.Parse(SamplingRateInput.text) > 300 && PluxDevManager.GetProductIdUnity() == 517)
+                {
+                    // Force sampling rate to acquire the maximum value.
+                    SamplingRate = 300;
+                    SamplingRateInput.text = "300";
+
+                    // Present info message.
+                    Hybrid8SamplingRateInfoPanel.SetActive(true);
+
+                    // Hide object after 5 seconds.
+                    StartCoroutine(RemoveAfterSeconds(5, Hybrid8SamplingRateInfoPanel));
                 }
             }
         }
@@ -662,6 +777,19 @@ namespace Assets.Scripts
                 // Hide object after 5 seconds.
                 StartCoroutine(RemoveAfterSeconds(5, BLESamplingRateInfoPanel));
             }
+            // Check if we are dealing with a biosignalsplux Hybrid-8 device.
+            else if (Int32.Parse(SamplingRateInput.text) > 300 && PluxDevManager != null && PluxDevManager.GetProductIdUnity() == 517)
+            {
+                // Force sampling rate to acquire the maximum value.
+                SamplingRate = 300;
+                SamplingRateInput.text = "300";
+
+                // Present info message.
+                Hybrid8SamplingRateInfoPanel.SetActive(true);
+
+                // Hide object after 5 seconds.
+                StartCoroutine(RemoveAfterSeconds(5, Hybrid8SamplingRateInfoPanel));
+            }
         }
 
         // Function invoked during the onValueChanged event of the Bluetooth Toggle Button Inputs.
@@ -680,7 +808,7 @@ namespace Assets.Scripts
         {
             if (SamplingRateInput.text == "")
             {
-                SamplingRateInput.text = "1000";
+                SamplingRateInput.text = "100";
             }
         }
 
@@ -698,7 +826,15 @@ namespace Assets.Scripts
             }
 
             // Update the label with the Current Channel Number.
-            CurrentChannel.text = "CH" + VisualizationChannel;
+            if (startBySrc == true && PluxDevManager.GetProductIdUnity() == 517)
+            {
+                int chnNbr = (int) Math.Ceiling(VisualizationChannel / 2.0);
+                string chnDerivation = (int) ((VisualizationChannel / 2.0) % chnNbr) == 0 ? "B" : "A";
+                CurrentChannel.text = "CH" + chnNbr + chnDerivation;
+            } else
+            {
+                CurrentChannel.text = "CH" + VisualizationChannel;
+            }
         }
 
         // Callback that receives the list of PLUX devices found during the Bluetooth scan.
@@ -819,7 +955,13 @@ namespace Assets.Scripts
                     ResolutionDropdown.ClearOptions();
 
                     //Add the options created in the List above
-                    if (devType == "biosignalsplux")
+                    if (PluxDevManager.GetProductIdUnity() == 517)
+                    {
+                        ResolutionDropdown.AddOptions(new List<string>() {"16"});
+                        ResolutionDropDownOptions = new List<string>() {"16"};
+                        LedConfigButton.interactable = true;
+                    }
+                    else if (devType == "biosignalsplux")
                     {
                         ResolutionDropdown.AddOptions(new List<string>() { "8", "16" });
                         ResolutionDropDownOptions = new List<string>() { "8", "16" };
@@ -986,6 +1128,25 @@ namespace Assets.Scripts
             }
 
             return nbrChannels;
+        }
+
+        // Auxiliary method used to update the data structure responsible for storing the LED intensity values of each biosignalsplux Hybrid-8 channel.
+        // slider -> Slider object whose value will be stored.
+        // guidingCircle -> Guiding Circle image to be updated in accordance to the registered value.
+        // intensityText -> Text object used to present the selected Intensity level.
+        // cacheArray -> Data structure that stores the values of the LED intensities.
+        private void UpdateLedIntensityCache(Slider slider, Image guidingCircle, Text intensityText, int[] cacheArray)
+        {
+            // Change the opacity/alpha of the guiding circle.
+            Color circleColor = guidingCircle.color;
+            circleColor.a = slider.value / 100;
+            guidingCircle.color = circleColor;
+
+            // Update the value into our global data structure.
+            cacheArray[ChannelLedDropdown.value] = (int) slider.value;
+
+            // Provide a textual feedback to the user.
+            intensityText.text = cacheArray[ChannelLedDropdown.value].ToString() + "%";
         }
     }
 }

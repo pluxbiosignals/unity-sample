@@ -157,11 +157,18 @@ public class PluxDeviceManager
     // macAddress -> Device unique identifier, i.e., mac-address.
     private void ConnectToPluxDev(string macAddress)
     {
-        PluxDevUnity(macAddress);
-        DeviceConnected = true;
+        try
+        {
+            PluxDevUnity(macAddress);
+            DeviceConnected = true;
 
-        // Send data (list of devices found) to the MAIN THREAD.
-        UnityThreadHelper.Dispatcher.Dispatch(() => ConnectionDoneCallback());
+            // Send data (connection status) to the MAIN THREAD.
+            UnityThreadHelper.Dispatcher.Dispatch(() => ConnectionDoneCallback());
+        }
+        catch (Exception exc)
+        {
+            Debug.Log("Exception being raised: " + exc.StackTrace);
+        }
     }
 
     public void DisconnectPluxDev()
@@ -402,6 +409,23 @@ public class PluxDeviceManager
         }
     }
 
+    // Method used to check if any unhandled exception was raised until the moment.
+    public bool IsExceptionInBuffer()
+    {
+        // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
+        BufferAcqSamples bufferedSamples = LazyObject.Value;
+        lock (bufferedSamples)
+        {
+            if (bufferedSamples.getUncaughtExceptionState())
+            {
+                bufferedSamples.deactUncaughtException();
+                throw new ExternalException("An exception with unknown origin was raised, but it is not fatal. It is probable that the device connection was lost...");
+            }
+
+            return false;
+        }
+    }
+
     // Callback function responsible for receiving the acquired data samples from the communication loop started by StartLoopUnity().
     private bool DllCommunicationHandler(int exceptionCode, string exceptionDescription, int nSeq, IntPtr data, int dataInSize)
     {
@@ -442,7 +466,7 @@ public class PluxDeviceManager
                 }
                 else
                 {
-                    Debug.Log("A new C++ exception was found...");
+                    Debug.Log("A new C++ exception was found:\n " + exceptionDescription);
                     // Check if the current exception could be an uncaught one.
                     BufferAcqSamples bufferedSamples = LazyObject.Value;
                     lock (bufferedSamples)
@@ -701,7 +725,7 @@ public class PluxDeviceManager
         // nSeq -> Sequence number that univocally identifies the package.
         // newPackage -> Package of data to be added to the memory data structure of this object.
         public void addSamples(int nSeq, int[] newPackage)
-        {  
+        {
             // Check if the new package of data is the valid one, i.e., if it is the one immediately after the last received package.
             if (nSeq <= lastNSeq || nSeq > lastNSeq + 1)
             {

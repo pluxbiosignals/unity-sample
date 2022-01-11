@@ -151,9 +151,7 @@ To create a new `PluxSource` the following constructor must be used:
 // nBits -> Source sampling resolution in bits (8 or 16). Default value is 16.
 // chMask -> Bitmask of source channels to sample (bit 0 is channel 0, etc). Default value is 1 (channel 0 
 //           only). For a digital port if chMask=0x0F it means that channels 1-4 are active (0000 1111).
-// serialNum -> Source serial number (reserved, must be zero). Default value is zero.
-// isPluxSrc -> Auxiliar flag [currently not being used].
-public PluxSource(int port, int freqDivisor, int nBits, int chMask, int serialNum, bool isPluxSrc)
+public PluxSource(int port, int freqDivisor, int nBits, int chMask)
 ```
 
 Some practical examples are presented in the following code blocks:
@@ -170,6 +168,32 @@ pluxSources.Add(new PluxDeviceManager.PluxSource(8, 1, 16, 0x01));
 // Being PluxDevManager the instance of our PluxDeviceManager class.
 // sampling rate = 1000 Hz
 PluxDevManager.StartAcquisitionBySourcesUnity(1000, pluxSources.ToArray());
+```
+
+**\[bisignalsplux Hybrid-8\]**
+
+```csharp
+// Starting a real-time acquisition from:
+// >>> biosignalsplux Hybrid-8 [CH1, CH2 and CH8 active | resolution=16 bits]
+// >>> CH1 and CH2 will be connected to a digital sensor (fNIRS, SpO2,...).
+List<PluxDeviceManager.PluxSource> pluxSources = new List<PluxDeviceManager.PluxSource>();
+
+// Add the sources of the digital channels (CH1 and CH2).
+pluxSources.Add(new PluxDeviceManager.PluxSource(1, 1, 16, 0x03));
+pluxSources.Add(new PluxDeviceManager.PluxSource(2, 1, 16, 0x03));
+
+// Being PluxDevManager the instance of our PluxDeviceManager class.
+// Define the LED Intensities of both sensors as: RED=80% and INFRARED=40%
+int[] ledIntensities = new int[2] {80, 40};
+PluxDevManager.SetParameter(1, 0x03, ledIntensities);
+PluxDevManager.SetParameter(2, 0x03, ledIntensities);
+
+// Add the source of the analog channel (CH8).
+pluxSources.Add(new PluxDeviceManager.PluxSource(8, 1, 16, 0x01));
+
+// Being PluxDevManager the instance of our PluxDeviceManager class.
+// Start a real-time acquisition at a 300 Hz sampling rate.
+PluxDevManager.StartAcquisitionBySourcesUnity(300, pluxSources.ToArray());
 ```
 
 **\[fNIRS Explorer\]**
