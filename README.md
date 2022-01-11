@@ -1,9 +1,7 @@
 # PLUX Unity API \[Windows] | Sample APP
 The **Sample APP** contained inside this repository provides a practical and intuitive resource to explore the integration of the signal acquisition devices
-commercialized by **PLUX** ([**biosignalsplux**](https://www.biosignalsplux.com/en/):warning:, [**BITalino**](https://bitalino.com/en/)...) with the powerful 
+commercialized by **PLUX** ([**biosignalsplux**](https://www.biosignalsplux.com/en/), [**BITalino**](https://bitalino.com/en/)...) with the powerful 
 development environment of **Unity**.
-
-> :warning: **Note:** Despite being part of the **biosignalsplux** family, the [**fNIRS Explorer**](https://plux.info/biosignalsplux-wearables/497-fnirs-explorer-820201221.html) is not currently supported by the **Unity API**. Compatibility issues will be solved in a short-future!
 
 Some questions can be enlightened, such as:
 
