@@ -31,12 +31,16 @@ public class Hybrid8Test : MonoBehaviour
 
     private int Hybrid8PID = 517;
     private int BiosignalspluxPID = 513;
+    private int MaxLedIntensity = 255;
 
     // Start is called before the first frame update
     void Start()
     {
         // Initialise object
         pluxDevManager = new PluxDeviceManager(ScanResults, ConnectionDone);
+
+        // Important call for debug purposes by creating a log file in the root directory of the project.
+        pluxDevManager.WelcomeFunctionUnity();
     }
 
     // Update function, being constantly invoked by Unity.
@@ -153,7 +157,9 @@ public class Hybrid8Test : MonoBehaviour
             pluxSources.Add(new PluxDeviceManager.PluxSource(2, 1, resolution, 0x03));
 
             // Define the LED Intensities of both sensors (CH1 and CH2) as: {RED, INFRARED}
-            int[] ledIntensities = new int[2] { int.Parse(RedIntensityDropdown.options[RedIntensityDropdown.value].text), int.Parse(InfraredIntensityDropdown.options[InfraredIntensityDropdown.value].text) };
+            int redLedIntensity = (int) (int.Parse(RedIntensityDropdown.options[RedIntensityDropdown.value].text) * (MaxLedIntensity / 100f)); // A 8-bit value (0-255)
+            int infraredLedIntensity = (int)(int.Parse(InfraredIntensityDropdown.options[InfraredIntensityDropdown.value].text) * (MaxLedIntensity / 100f)); // A 8-bit value (0-255)
+            int[] ledIntensities = new int[2] { redLedIntensity, infraredLedIntensity };
             pluxDevManager.SetParameter(1, 0x03, ledIntensities);
             pluxDevManager.SetParameter(2, 0x03, ledIntensities);
 
