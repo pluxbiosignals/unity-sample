@@ -527,7 +527,7 @@ namespace Assets.Scripts
                                 pluxSources.Add(new PluxDeviceManager.PluxSource(i + 1, 1, resolution, 0x03));
 
                                 // Led Intensities.
-                                int[] ledIntensities = new int[2] { redLedIntensities[i], infraredLedIntensities[i] };
+                                int[] ledIntensities = new int[2] { (int) ((redLedIntensities[i] / 100f) * 255), (int)((infraredLedIntensities[i] / 100f) * 255) };
                                 PluxDevManager.SetParameter(i + 1, 0x03, ledIntensities);
                             }
                             else
