@@ -31,6 +31,7 @@ public class Hybrid8Test : MonoBehaviour
 
     private int Hybrid8PID = 517;
     private int BiosignalspluxPID = 513;
+    private int BitalinoPID = 1538;
     private int MaxLedIntensity = 255;
 
     // Start is called before the first frame update
@@ -175,8 +176,18 @@ public class Hybrid8Test : MonoBehaviour
             pluxSources.Add(new PluxDeviceManager.PluxSource(8, 1, resolution, 0x01));
         }
 
-        // Start a real-time acquisition with the created sources.
-        pluxDevManager.StartAcquisitionBySourcesUnity(samplingRate, pluxSources.ToArray());
+        // BITalino (2 Analog sensors)
+        if (pluxDevManager.GetProductIdUnity() == BitalinoPID)
+        {
+            // Starting a real-time acquisition from:
+            // >>> BITalino [Channels A2 and A5 active]
+            pluxDevManager.StartAcquisitionUnity(samplingRate, new List<int>{2, 5}, 10);
+        }
+        else
+        {
+            // Start a real-time acquisition with the created sources.
+            pluxDevManager.StartAcquisitionBySourcesUnity(samplingRate, pluxSources.ToArray());
+        }
 
         // Enable the "Stop Acquisition" button and disable the "Start Acquisition" button.
         StartAcqButton.interactable = false;
@@ -235,8 +246,11 @@ public class Hybrid8Test : MonoBehaviour
         ConnectButton.interactable = false;
 
         // Enable some generic GUI elements.
+        if (pluxDevManager.GetProductIdUnity() != BitalinoPID)
+        {
+            ResolutionDropdown.interactable = true;
+        }
         SamplingRateDropdown.interactable = true;
-        ResolutionDropdown.interactable = true;
         StartAcqButton.interactable = true;
         DisconnectButton.interactable = true;
 
