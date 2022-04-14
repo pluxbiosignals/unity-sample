@@ -166,6 +166,18 @@ public class Hybrid8Test : MonoBehaviour
 
             // Add the source of the analog channel (CH8).
             pluxSources.Add(new PluxDeviceManager.PluxSource(8, 1, resolution, 0x01));
+
+            // Add the sources of the internal IMU channels (CH11 with 9 derivations [3xACC | 3xGYRO | 3xMAG] defined by the 0x01FF chMask).
+            int imuPort = 11;
+            pluxSources.Add(new PluxDeviceManager.PluxSource(imuPort, 1, resolution, 0x01FF));
+
+            // Alternatively only some of the derivations can be activated.
+            // >>> 3xACC (channel mask 0x0007)
+            // pluxSources.Add(new PluxDeviceManager.PluxSource(imuPort, 1, resolution, 0x0007));
+            // >>> 3xGYR (channel mask 0x0038)
+            // pluxSources.Add(new PluxDeviceManager.PluxSource(imuPort, 1, resolution, 0x0038));
+            // >>> 3xMAG (channel mask 0x01C0)
+            // pluxSources.Add(new PluxDeviceManager.PluxSource(imuPort, 1, resolution, 0x01C0));
         }
         // biosignalsplux (2 Analog sensors)
         else if(pluxDevManager.GetProductIdUnity() == BiosignalspluxPID)
