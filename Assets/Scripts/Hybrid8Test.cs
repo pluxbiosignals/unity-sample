@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,6 +10,7 @@ public class Hybrid8Test : MonoBehaviour
 {
     // Class Variables
     private PluxDeviceManager pluxDevManager;
+    private StreamWriter filerWriterNew;
 
     // GUI Objects.
     public Button ScanButton;
@@ -27,7 +29,6 @@ public class Hybrid8Test : MonoBehaviour
     [System.NonSerialized]
     public List<string> domains = new List<string>() { "BTH" };
     public int samplingRate = 100;
-    public int nbrAcqSamples = 0;
 
     private int Hybrid8PID = 517;
     private int BiosignalspluxPID = 513;
@@ -38,53 +39,14 @@ public class Hybrid8Test : MonoBehaviour
     void Start()
     {
         // Initialise object
-        pluxDevManager = new PluxDeviceManager(ScanResults, ConnectionDone);
+        pluxDevManager = new PluxDeviceManager(ScanResults, ConnectionDone, AcquisitionStarted, OnDataReceived, OnEventDetected);
 
         // Important call for debug purposes by creating a log file in the root directory of the project.
         pluxDevManager.WelcomeFunctionUnity();
     }
 
     // Update function, being constantly invoked by Unity.
-    void Update()
-    {
-        try
-        {
-            // Check if there are any exception in the buffer that should be handled.
-            if (!pluxDevManager.IsExceptionInBuffer())
-            {
-                int[][] packageOfData = pluxDevManager.GetPackageOfData(true);
-
-                // Protection against null packages.
-                if (packageOfData != null)
-                {
-                    // Increment our auxiliary counter.
-                    nbrAcqSamples += packageOfData.Length;
-
-                    // Show samples with a 2s interval.
-                    if (nbrAcqSamples % (2 * samplingRate) == 0)
-                    {
-                        // Show the first sample (index 0) of the current package of data.
-                        string outputString = "Acquired Data:\n";
-                        for (int j = 0; j < packageOfData[0].Length; j++)
-                        {
-                            outputString += packageOfData[0][j] + "\t";
-                        }
-
-                        // Show the values in the GUI.
-                        OutputMsgText.text = outputString;
-                    }
-                }
-            }
-        }
-        catch (ExternalException exc)
-        {
-            ExceptionTreatmentProc(exc.Message);
-        }
-        catch (Exception exc)
-        {
-            ExceptionTreatmentProc(exc.Message);
-        }
-    }
+    void Update() {}
 
     // Method invoked when the application was closed.
     void OnApplicationQuit()
@@ -95,12 +57,12 @@ public class Hybrid8Test : MonoBehaviour
             if (pluxDevManager != null)
             {
                 pluxDevManager.DisconnectPluxDev();
-                Debug.Log("Application ending after " + Time.time + " seconds");
+                Console.WriteLine("Application ending after " + Time.time + " seconds");
             }
         }
         catch (Exception exc)
         {
-            Debug.Log("Device already disconnected when the Application Quit.");
+            Console.WriteLine("Device already disconnected when the Application Quit.");
         }
     }
 
@@ -200,10 +162,6 @@ public class Hybrid8Test : MonoBehaviour
             // Start a real-time acquisition with the created sources.
             pluxDevManager.StartAcquisitionBySourcesUnity(samplingRate, pluxSources.ToArray());
         }
-
-        // Enable the "Stop Acquisition" button and disable the "Start Acquisition" button.
-        StartAcqButton.interactable = false;
-        StopAcqButton.interactable = true;
     }
 
     // Method called when the "Stop Acquisition" button is pressed.
@@ -250,27 +208,100 @@ public class Hybrid8Test : MonoBehaviour
     }
 
     // Callback invoked once the connection with a PLUX device was established.
-    public void ConnectionDone()
+    // connectionStatus -> A boolean flag stating if the connection was established with success (true) or not (false).
+    public void ConnectionDone(bool connectionStatus)
     {
-        // Disable some GUI elements.
-        ScanButton.interactable = false;
-        DeviceDropdown.interactable = false;
-        ConnectButton.interactable = false;
-
-        // Enable some generic GUI elements.
-        if (pluxDevManager.GetProductIdUnity() != BitalinoPID)
+        if (connectionStatus)
         {
-            ResolutionDropdown.interactable = true;
+            // Disable some GUI elements.
+            ScanButton.interactable = false;
+            DeviceDropdown.interactable = false;
+            ConnectButton.interactable = false;
+
+            // Enable some generic GUI elements.
+            if (pluxDevManager.GetProductIdUnity() != BitalinoPID)
+            {
+                ResolutionDropdown.interactable = true;
+            }
+
+            SamplingRateDropdown.interactable = true;
+            StartAcqButton.interactable = true;
+            DisconnectButton.interactable = true;
+
+            // Enable some biosignalsplux Hybrid-8 specific GUI elements.
+            if (pluxDevManager.GetProductIdUnity() == Hybrid8PID)
+            {
+                RedIntensityDropdown.interactable = true;
+                InfraredIntensityDropdown.interactable = true;
+            }
         }
-        SamplingRateDropdown.interactable = true;
-        StartAcqButton.interactable = true;
-        DisconnectButton.interactable = true;
-
-        // Enable some biosignalsplux Hybrid-8 specific GUI elements.
-        if (pluxDevManager.GetProductIdUnity() == Hybrid8PID)
+        else
         {
-            RedIntensityDropdown.interactable = true;
-            InfraredIntensityDropdown.interactable = true;
+            // Enable Connect button.
+            ConnectButton.interactable = true;
+
+            // Show an informative message stating the connection with the device was not established with success.
+            OutputMsgText.text = "It was not possible to establish a connection with the device. Please, try to repeat the connection procedure.";
+        }
+    }
+
+    // Callback invoked once the data streaming between the PLUX device and the computer is started.
+    // acquisitionStatus -> A boolean flag stating if the acquisition was started with success (true) or not (false).
+    public void AcquisitionStarted(bool acquisitionStatus)
+    {
+        if (acquisitionStatus)
+        {
+            // Enable the "Stop Acquisition" button and disable the "Start Acquisition" button.
+            StartAcqButton.interactable = false;
+            StopAcqButton.interactable = true;
+        }
+        else
+        {
+            // Present an informative message about the error.
+            OutputMsgText.text = "It was not possible to start a real-time data acquisition. Please, try to repeat the scan/connect/start workflow.";
+
+            // Reboot GUI.
+            RebootGUI();
+        }
+    }
+
+    // Callback that receives the data acquired from the PLUX devices that are streaming real-time data.
+    public void OnDataReceived(int nSeq, int[] data)
+    {
+        // Show samples with a 1s interval.
+        if (nSeq % samplingRate == 0)
+        {
+            // Show the current package of data.
+            string outputString = "Acquired Data:\n";
+            for (int j = 0; j < data.Length; j++)
+            {
+                outputString += data[j] + "\t";
+            }
+
+            // Show the values in the GUI.
+            OutputMsgText.text = outputString;
+        }
+    }
+
+    // Callback that receives the events raised from the PLUX devices that are streaming real-time data.
+    public void OnEventDetected(PluxDeviceManager.PluxEvent pluxEvent)
+    {
+        if (pluxEvent is PluxDeviceManager.PluxDisconnectEvent)
+        {
+            // Present an error message.
+            OutputMsgText.text =
+                "The connection between the computer and the PLUX device was interrupted due to the following event: " +
+                (pluxEvent as PluxDeviceManager.PluxDisconnectEvent).reason;
+            
+            // Securely stop the real-time acquisition.
+            pluxDevManager.StopAcquisitionUnity(-1);
+
+            // Reboot GUI.
+            RebootGUI();
+        } else if (pluxEvent is PluxDeviceManager.PluxDigInUpdateEvent)
+        {
+            PluxDeviceManager.PluxDigInUpdateEvent digInEvent = (pluxEvent as PluxDeviceManager.PluxDigInUpdateEvent);
+            Console.WriteLine("Digital Input Update Event Detected on channel " + digInEvent.channel + ". Current state: " + digInEvent.state);
         }
     }
 
@@ -280,26 +311,7 @@ public class Hybrid8Test : MonoBehaviour
      * =================================================================================
      */
 
-    // Method invoked when an exception is raised (in order to stop a real-time acquisition securely).
-    // excMsg -> Message describing the raised exception.
-    public void ExceptionTreatmentProc(string excMsg)
-    {
-        // Present the error message to the user.
-        OutputMsgText.text = excMsg;
-
-        // Clear packages in memory.
-        pluxDevManager.RebootDataBuffer();
-
-        // Stop Acquisition in a secure way.
-        pluxDevManager.StopAcquisitionUnity(-1);
-
-        // Reboot GUI elements state.
-        RebootGUI();
-    }
-
-    /**
-     * Auxiliary method used to reboot the GUI elements.
-     */
+    // Auxiliary method used to reboot the GUI elements.
     public void RebootGUI()
     {
         ScanButton.interactable = true;
