@@ -46,7 +46,7 @@ public class PluxDeviceManager
     [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDeviceType();
     [DllImport("plux_unity_interface")]
-    private static extern void SetCommunicationHandler(FPtrUnity handlerFunction);
+    private static extern void SetNewDeviceFoundHandler(OnNewDeviceFound handlerFunction);
     [DllImport("plux_unity_interface")]
     private static extern void SetOnRawDataHandler(OnRawFrameReceived handlerFunction);
     [DllImport("plux_unity_interface")]
@@ -170,11 +170,10 @@ public class PluxDeviceManager
     // Delegates (needed for callback purposes).
     public delegate void OnRawFrame(int nSeq, int[] dataIn);
     public delegate void OnRawFrameReceived(int nSeq, IntPtr dataIn, int dataInSize);
-    public delegate void FPtr(int nSeq, int[] dataIn, int dataInSize);
-    public delegate bool FPtrUnity(int exceptionCode, string exceptionDescription, int nSeq, IntPtr dataIn, int dataInSize);
+    public delegate void OnNewDeviceFound(string newDevice);
     public delegate void ScanResults(List<string> listDevices);
     public delegate void ConnectionDone(bool connectionStatus);
-    public delegate void AcquisitionStarted(bool acquisitionStatus);
+    public delegate void AcquisitionStarted(bool acquisitionStatus, bool exceptionRaised = false, string exceptioDescription = "");
     public delegate void OnExceptionRaised(int exceptionCode, string exceptionDescription);
     public delegate void OnEventDetected(PluxEvent pluxEvent);
     public delegate void OnDisconnectEventRaised(PluxDisconnectEvent.PluxDisconnectReason reason);
@@ -187,7 +186,6 @@ public class PluxDeviceManager
     private ScanResults ScanResultsCallback;
     private ConnectionDone ConnectionDoneCallback;
     private AcquisitionStarted AcquisitionStartedCallback;
-    private OnEventDetected OnEventDetectedCallback;
     private static Lazy<List<String>> PluxDevsFound = null;
     private bool DeviceConnected = false;
     private int SamplingRate;
@@ -206,15 +204,12 @@ public class PluxDeviceManager
     // acquisitionStartedCallback -> Callback function that will be invoked when the acqusition start request attempt was completed with success or not.
     // onDataReceivedCallback -> Callback function invoked every time a new package of RAW data samples is transmitted by the API.
     // onEventDetectedCallback -> Callback invoked when an event is raised by the PLUX API.
-    public PluxDeviceManager(ScanResults scanResultsCallback, ConnectionDone connectionDoneCallback, AcquisitionStarted acquisitionStartedCallback, OnRawFrame onDataReceivedCallback, OnEventDetected onEventDetectedCallback)
+    // onExceptionRaisedCallback -> Callback invoked when an exception is raised by the PLUX API.
+    public PluxDeviceManager(ScanResults scanResultsCallback, ConnectionDone connectionDoneCallback, AcquisitionStarted acquisitionStartedCallback, OnRawFrame onDataReceivedCallback, OnEventDetected onEventDetectedCallback, 
+        OnExceptionRaised onExceptionRaisedCallback)
     {
         LazyObject = new Lazy<BufferAcqSamples>(InitBufferedSamplesObject);
         PluxDevsFound = new Lazy<List<String>>(InitiListDevFound);
-
-        // exceptionPointer -> Pointer to the callback function that will be used to send/communicate information about exceptions generated inside this .dll
-        //                     The exception code and description will be sent to Unity where an appropriate action can take place.
-        FPtrUnity dllCommunicationHandler = new FPtrUnity(DllCommunicationHandler);
-        SetCommunicationHandler(dllCommunicationHandler);
 
         // Scan callback.
         this.ScanResultsCallback = new ScanResults(scanResultsCallback);
@@ -225,8 +220,9 @@ public class PluxDeviceManager
         // Storage of the AcquisitionStarted callback.
         this.AcquisitionStartedCallback = new AcquisitionStarted(acquisitionStartedCallback);
 
-        // Storage of the OnEventDetected callback.
-        this.OnEventDetectedCallback = new OnEventDetected(onEventDetectedCallback);
+        // Initialization of the variable storing the callback responsible for receiving the devices found during the scan.
+        OnNewDeviceFound onNewDeviceFoundHandler = new OnNewDeviceFound(OnNewDeviceFoundHandler);
+        SetNewDeviceFoundHandler(onNewDeviceFoundHandler);
 
         // Initialization of the variable storing the callback responsible for receiving the streamed data.
         OnRawFrameReceived onRawDataHandler = new OnRawFrameReceived(OnRawFrameHandler);
@@ -246,7 +242,7 @@ public class PluxDeviceManager
 
         // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
         // samples as inputs.
-        SetCallbackHandler(CallbackHandler, onDataReceivedCallback, onEventDetectedCallback);
+        SetCallbackHandler(onDataReceivedCallback, onEventDetectedCallback, onExceptionRaisedCallback);
     }
 
     // [Redefinition of the imported methods ensuring that they are accessible on other scripts]
@@ -494,70 +490,24 @@ public class PluxDeviceManager
 
             return false;
         }
-    }    // Callback function responsible for receiving the acquired data samples from the communication loop started by StartLoopUnity().
-    // TODO Original Callback whose migration to specialized callbacks is still under progress.
-    private bool DllCommunicationHandler(int exceptionCode, string exceptionDescription, int nSeq, IntPtr data, int dataInSize)
+    }
+
+    // Callback function responsible for receiving the devices found during the Bluetooth scan.
+    // newDeviceFound -> MAC-Address of the device found during the scan.
+    private void OnNewDeviceFoundHandler(string newDeviceFound)
     {
-        lock (callbackPointer)
+        try
         {
-            try
-            {
-                // DEBUG
-                //Console.WriteLine("Monitoring: " + nSeq + "|" + data + "|" + dataInSize);
-
-                // Check if no exception were raised.
-                if (exceptionCode == 0)
-                {
-                    try
-                    {
-                        // Convert our data pointer to an array format.
-                        int[] dataArray = new int[dataInSize];
-                        Marshal.Copy(data, dataArray, 0, dataInSize);
-
-                        callbackPointer.GetCallbackRef()(nSeq , dataArray, dataInSize);
-                    }
-                    catch (OutOfMemoryException exception)
-                    {
-                        BufferAcqSamples bufferedSamples = LazyObject.Value;
-                        lock (bufferedSamples)
-                        {
-                            bufferedSamples.actUncaughtException();
-                            Debug.Log("Executing preventive approaches to deal with a potential OutOfMemoryException:\n" + exception.StackTrace);
-                        }
-                    }
-                }
-                else if (exceptionCode == 777) // Receiving devices found during scan.
-                {
-                    // Store list of found devices in a global variable shared between threads.
-                    Console.WriteLine("Receiving Device: " + exceptionDescription);
-                    List<String> devicesFound = PluxDevsFound.Value;
-                    devicesFound.Add(exceptionDescription);
-                }
-                else
-                {
-                    Debug.Log("A new C++ exception was found:\n " + exceptionDescription);
-                    // Check if the current exception could be an uncaught one.
-                    BufferAcqSamples bufferedSamples = LazyObject.Value;
-                    lock (bufferedSamples)
-                    {
-                        // Activate flag in BufferedSamples object stating that an uncaught exception exists.
-                        bufferedSamples.actUncaughtException();
-                    }
-
-                    throw new Exception(exceptionCode.ToString() + " | " + exceptionDescription);
-                }
-            }
-            catch (OutOfMemoryException exception)
-            {
-                BufferAcqSamples bufferedSamples = LazyObject.Value;
-                lock (bufferedSamples)
-                {
-                    bufferedSamples.actUncaughtException();
-                    Debug.Log("Executing preventive approaches to deal with a potential OutOfMemoryException:\n" + exception.StackTrace);
-                }
-            }
-
-            return true;
+            // Store the device into a class variable.
+            PluxDevsFound.Value.Add(newDeviceFound);
+        }
+        catch (OutOfMemoryException exception)
+        {
+            Debug.Log("OutOfMemory Exception raised: " + exception);
+        }
+        catch (Exception exception)
+        {
+            Debug.Log("Unexpected Exception raised: " + exception);
         }
     }
 
@@ -573,8 +523,11 @@ public class PluxDeviceManager
             int[] dataArray = new int[dataInSize];
             Marshal.Copy(data, dataArray, 0, dataInSize);
 
-            // Send data (RAW frames) to the MAIN THREAD.
-            UnityThreadHelper.Dispatcher.Dispatch(() => callbackPointer.onRawFrameReference(nSeq, dataArray));
+            // Check if an exception was raised.
+            if (!IsExceptionInBuffer()) { 
+                // Send data (RAW frames) to the MAIN THREAD.
+                UnityThreadHelper.Dispatcher.Dispatch(() => callbackPointer.onRawFrameReference(nSeq, dataArray));
+            }
         }
     }
 
@@ -590,6 +543,9 @@ public class PluxDeviceManager
             {
                 bufferedSamples.actUncaughtException();
                 Debug.Log("Exception being raised in the PLUX C++ API Wrapper:\n" + exceptionCode + " | " + exceptionDescription);
+
+                // Inform the GUI about the raise of an exception.
+                UnityThreadHelper.Dispatcher.Dispatch(() => callbackPointer.OnExceptionRaisedReference(exceptionCode, exceptionDescription));
             }
         }
     }
@@ -616,22 +572,6 @@ public class PluxDeviceManager
         {
             // Send data (event) to the MAIN THREAD.
             UnityThreadHelper.Dispatcher.Dispatch(() => callbackPointer.onEventDetectedReference(new PluxDigInUpdateEvent(new PluxDigInUpdateEvent.PluxClock(clockSource, clockValue), channel, state)));
-        }
-    }
-
-    // Callback Handler (function invoked during signal acquisition, being essential to ensure the 
-    // communication between our C++ API and the Unity project.
-    // TODO Original Callback whose migration to specialized callbacks is still under progress.
-    void CallbackHandler(int nSeq, int[] data, int dataLength)
-    {
-        // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
-        BufferAcqSamples bufferedSamples = LazyObject.Value;
-        lock (bufferedSamples)
-        {
-            // Storage of the received data samples.
-            // Samples are organized in a sequential way, so if channels 1 and 4 are active it means that
-            // data[0] will contain the sample value of channel 1 while data[1] is the sample collected on channel 4.
-            bufferedSamples.addSamples(nSeq, data);
         }
     }
 
@@ -738,9 +678,19 @@ public class PluxDeviceManager
             devicesFound.Clear();
             for (int domainNbr = 0; domainNbr < domains.Count; domainNbr++)
             {
-                // List of available Devices.
-                Console.WriteLine("Devices Found? " + domains[domainNbr]);
-                GetDetectableDevices(domains[domainNbr]);
+                try
+                {
+                    // List of available Devices.
+                    GetDetectableDevices(domains[domainNbr]);
+                }
+                catch (OutOfMemoryException exception)
+                {
+                    Debug.Log("OutOfMemory Exception raised [Point 1]: " + exception);
+                }
+                catch (Exception exception)
+                {
+                    Debug.Log("Unexpected Exception raised: " + exception);
+                }
             }
 
             // Send data (list of devices found) to the MAIN THREAD.
@@ -758,12 +708,12 @@ public class PluxDeviceManager
     }
 
     // Definition of the callback function responsible for managing the acquired data (which is defined on users Unity script).
-    // callbackHandler -> A function pointer to the callback that will receive the acquired data samples on the Unity side.
     // onRawFrameHandler -> Callback function invoked every time a new package of RAW data samples is transmitted by the API.
     // onEventDetectedHandler -> Callback invoked when an event is raised by the PLUX API.
-    public bool SetCallbackHandler(FPtr callbackHandler, OnRawFrame onRawFrameHandler, OnEventDetected onEventDetectedHandler)
+    // onExceptionRaisedHandler -> Callback invoked when an exception is raised by the PLUX API.
+    public bool SetCallbackHandler(OnRawFrame onRawFrameHandler, OnEventDetected onEventDetectedHandler, OnExceptionRaised onExceptionRaisedHandler)
     {
-        callbackPointer = new CallbackManager(callbackHandler, onRawFrameHandler, onEventDetectedHandler);
+        callbackPointer = new CallbackManager(onRawFrameHandler, onEventDetectedHandler, onExceptionRaisedHandler);
         return true;
     }
 
@@ -807,6 +757,12 @@ public class PluxDeviceManager
         return GetProductId();
     }
 
+    // "Getter" method intended to check if a real-time acquisition is currently running.
+    public bool IsAcquisitionInProgress()
+    {
+        return AcquisitionThread != null;
+    }
+
     // "Getter" method intended to check the type of the connected device.
     public string GetDeviceTypeUnity()
     {
@@ -816,19 +772,14 @@ public class PluxDeviceManager
     // Class that manages the reference to callbackPointer.
     public class CallbackManager
     {
-        public FPtr callbackReference;
         public OnRawFrame onRawFrameReference;
         public OnEventDetected onEventDetectedReference;
-        public CallbackManager(FPtr callbackPointer, OnRawFrame onRawFrameHandler, OnEventDetected onEventDetectedHandler)
+        public OnExceptionRaised OnExceptionRaisedReference;
+        public CallbackManager(OnRawFrame onRawFrameHandler, OnEventDetected onEventDetectedHandler, OnExceptionRaised onExceptionRaisedHandler)
         {
-            callbackReference = callbackPointer;
             onRawFrameReference = onRawFrameHandler;
             onEventDetectedReference = onEventDetectedHandler;
-        }
-
-        public FPtr GetCallbackRef()
-        {
-            return callbackReference;
+            OnExceptionRaisedReference = onExceptionRaisedHandler;
         }
     }
 

@@ -39,7 +39,7 @@ public class Hybrid8Test : MonoBehaviour
     void Start()
     {
         // Initialise object
-        pluxDevManager = new PluxDeviceManager(ScanResults, ConnectionDone, AcquisitionStarted, OnDataReceived, OnEventDetected);
+        pluxDevManager = new PluxDeviceManager(ScanResults, ConnectionDone, AcquisitionStarted, OnDataReceived, OnEventDetected, OnExceptionRaised);
 
         // Important call for debug purposes by creating a log file in the root directory of the project.
         pluxDevManager.WelcomeFunctionUnity();
@@ -247,7 +247,8 @@ public class Hybrid8Test : MonoBehaviour
 
     // Callback invoked once the data streaming between the PLUX device and the computer is started.
     // acquisitionStatus -> A boolean flag stating if the acquisition was started with success (true) or not (false).
-    public void AcquisitionStarted(bool acquisitionStatus)
+    // exceptionRaised -> A boolean flag that identifies if an exception was raised and should be presented in the GUI (true) or not (false).
+    public void AcquisitionStarted(bool acquisitionStatus, bool exceptionRaised = false, string exceptionMessage = "")
     {
         if (acquisitionStatus)
         {
@@ -258,7 +259,22 @@ public class Hybrid8Test : MonoBehaviour
         else
         {
             // Present an informative message about the error.
-            OutputMsgText.text = "It was not possible to start a real-time data acquisition. Please, try to repeat the scan/connect/start workflow.";
+            OutputMsgText.text = !exceptionRaised ? "It was not possible to start a real-time data acquisition. Please, try to repeat the scan/connect/start workflow." : exceptionMessage;
+
+            // Reboot GUI.
+            RebootGUI();
+        }
+    }
+
+    // Callback invoked every time an exception is raised in the PLUX API Plugin.
+    // exceptionCode -> ID number of the exception to be raised.
+    // exceptionDescription -> Descriptive message about the exception.
+    public void OnExceptionRaised(int exceptionCode, string exceptionDescription)
+    {
+        if (pluxDevManager.IsAcquisitionInProgress())
+        {
+            // Present an informative message about the error.
+            OutputMsgText.text = exceptionDescription;
 
             // Reboot GUI.
             RebootGUI();
