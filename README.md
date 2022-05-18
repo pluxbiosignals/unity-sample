@@ -430,7 +430,10 @@ The following unique identifiers defined which type of **PLUX** device is connec
 
 + **biosignalsplux** >>> 513
 + **biosignalsplux Hybrid-8** >>> 517
++ **biosignalsplux Solo** >>> 532
 + **BITalino (r)evolution** >>> 1538
++ **muscleBAN** >>> 1282
++ **muscleBAN (Newer Generations)** >>> 2049
 
 ### Parameters
 
