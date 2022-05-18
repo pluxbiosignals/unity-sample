@@ -23,7 +23,12 @@ Some questions can be enlightened, such as:
 
 ## Limitations
 
-+	Currently, only **biosignalsplux** and **biosignalsplux Hybrid-8** devices are supported by the **Lite** version of the Sample APP.
++	Currently, the **Lite** version of the Sample APP supports the following devices:
+  + **biosignalsplux**
+  + **biosignalsplux Hybrid-8**
+  + **biosignalsplux Solo**
+  + **muscleBAN**
+  + **BITalino (r)evolution**
 
 ## Auxiliary Packages
 
@@ -43,15 +48,65 @@ On the following animation we can quickly show the main functionalities of our *
 
 > **WARNING**
 >
-> While initialising **PluxDeviceManager** instance/object it will be necessary to specify a callback responsible for dealing with the asynchronous results produced during the Bluetooth device scan and another one that flags when a successful Bluetooth connection is established. The callbacks should present the following structure:
+> While initialising **PluxDeviceManager** instance/object it will be necessary to specify some callbacks responsible for dealing with the asynchronous results returned by the **PLUX API**, namely:
 >
 > **Scanning Results**
 >
 > `public void ScanResults(List<string> listDevices)`
 >
-> **Connection Successful**
+> This callback receives the list of devices (`listDevices`) found during the **Bluetooth** scan triggered by the [PluxDeviceManager.GetDetectableDevicesUnity](#GetDetectableDevicesUnity) method.
 >
-> `public void ConnectionDone()`
+> **Connection Status**
+>
+> `public void ConnectionDone(bool connectionStatus)`
+>
+> The current callback returns the result of the **Bluetooth** connection attempt (made by the [PluxDeviceManager.PluxDev](#PluxDev) method), stating if the connection was established with success (`connectionStatus=true`) or not (`connectionStatus=false`).
+>
+> **Acquisition Started Status**
+>
+> `public void AcquisitionStarted(bool acquisitionStatus, bool exceptionRaised, string exceptionMessage)`
+>
+> After triggering the start of a real-time data acquisition (with the methods highlighted below), this callback returns a state parameter (`acquisitionStatus`) that states if the acquisition was started with success (`acquisitionStatus=true`) or not (`acquisitionStatus=false`).
+>
+> + [PluxDeviceManager.StartAcquisitionUnity](#StartAcquisitionUnity)
+> + [PluxDeviceManager.StartAcquisitionBySourcesUnity](#StartAcquisitionBySourcesUnity)
+> + [PluxDeviceManager.StartAcquisitionByNbrUnity](#StartAcquisitionByNbrUnity)
+> + [PluxDeviceManager.StartAcquisitionMuscleBanUnity](#StartAcquisitionMuscleBanUnity)
+>
+> On the other hand, the `exceptionRaised` boolean flag identifies if this event was raised due to an exception raised in the **PLUX API** (`exceptionRaised=true`) and which was the description linked with the exception (`exceptionMessage`).
+>
+> **On Data Received**
+>
+> `public void OnDataReceived(int nSeq, int[] data)`
+>
+> This nuclear callback is responsible for receiving the packages of data streamed by a **PLUX** device, containing a sequential number identifying the package number (`nSeq`) and the package of **RAW** data (`data`) with the following format: `[sample_first_active_channel, sample_second_active_channel,...]`
+>
+> **On Event Detected**
+>
+> `public void OnEventDetected(PluxDeviceManager.PluxEvent pluxEvent)`
+>
+> The current callback receives a set of events that may be raised by the **PLUX API** during a real-time data acquisition, namely:
+>
+> + `PluxDeviceManager.PluxDisconnectEvent`
+>   + `<PluxDisconnectReason> reason` 
+>     This argument contains the reason (`Timeout` | `ButtonPressed` | `BatDischarged`) that triggered this event.
+> + `PluxDeviceManager.PluxDigInUpdateEvent`
+>   + `<PluxDeviceManager.PluxClock> timestamp`
+>     Timestamp object containing relevant info about the moment when the event was triggered.
+>     + `<ClockSources> source` 
+>       This argument contains the type of a timestamp object stating when the event was raised (`None` | `RTC` | `FrameCount` | `Bluetooth`) that triggered this event.
+>     + `<int> value`
+>       The timestamp value linked with the moment when the event was raised.
+>   + `<int> channel` 
+>     Number of the digital channel whose state was changed.
+>   + `<bool> state`
+>     New state of the digital channel.
+>
+> **On Exception Raised**
+>
+> `public void OnExceptionRaised(int exceptionCode, string exceptionDescription)`
+>
+> In this callback unhandled API exceptions are communicated to the **Unity APP**, presenting an unique identifier code (`exceptionCode`) and a string with the description about the exception (`exceptionDescription`).
 
 After the previous two steps, you will be fully prepared to expand your Unity project and include some interesting functionalities through the use of **PLUX** signal acquisition devices.
 
@@ -68,12 +123,12 @@ For this purpose, you simply need to invoke the available [Methods](#Methods).
 -	[PluxDeviceManager.StartAcquisitionByNbrUnity](#StartAcquisitionByNbrUnity)
 -	[PluxDeviceManager.StartAcquisitionMuscleBanUnity](#StartAcquisitionMuscleBanUnity)
 -	[PluxDeviceManager.StopAcquisitionUnity](#StopAcquisitionUnity)
--	[PluxDeviceManager.GetPackageOfData [v1]](#GetPackageOfData-v1)
--	[PluxDeviceManager.GetPackageOfData [v2]](#GetPackageOfData-v2)
 -	[PluxDeviceManager.GetDetectableDevicesUnity](#GetDetectableDevicesUnity)
 -	[PluxDeviceManager.GetNbrChannelsUnity](#GetNbrChannelsUnity)
 -	[PluxDeviceManager.GetBatteryUnity](#GetBatteryUnity)
 -	[PluxDeviceManager.GetDeviceTypeUnity](#GetDeviceTypeUnity)
+-	[PluxDeviceManager.GetProductIdUnity](#GetProductIdUnity)
+-	[PluxDeviceManager.IsAcquisitionInProgress](#IsAcquisitionInProgress)
 -	[PluxDeviceManager.SetParameter](#SetParameter)
 
 ## PluxDev
@@ -274,54 +329,6 @@ With `StopAcquisitionUnity()` function, first of all, the communication loop is 
 
 A `bool` flag is returned identifying when the stop event was forced (**true**) or manually invoked by the user (**false**).
 
-## GetPackageOfData [v1]
-
-Class method intended to request a package of data collected by the **PLUX** device.
-
-```csharp
-int[] GetPackageOfData(int channelNbr, List<int> activeChannelsMask, bool rebootMemory)
-```
-
-### Description
-
-After triggering the start of a real-time data acquisition streaming of sample values is continuously guaranteed through the established **Bluetooth** communication.
-
-The **PluxDeviceManager** class ensures the storage of the received packages of data, being this getter the method used to access the all packages of data from a desired channel (**channelNbr**). 
-
-### Parameters
-
-+	**channelNbr** `int`: Number of the channel under analysis (from which the sample will be retrieved).
-+	**activeChannelsMask** `List<int>`: List containing set of active channels.
-+	**rebootMemory** `bool`: When **true** the stored data inside **BufferedSamples** object is re-initialized.
-
-### Returned Values
-
-An ordered array of integer values, where each entry contains a sample value acquired from the **channelNbr** under analysis.
-
-## GetPackageOfData [v2]
-
-Class method intended to request a package of data collected by the **PLUX** device.
-
-```csharp
-int[][] GetPackageOfData(bool rebootMemory)
-```
-
-### Description
-
-After triggering the start of a real-time data acquisition streaming of sample values is continuously guaranteed through the established **Bluetooth** communication.
-
-The **PluxDeviceManager** class ensures the storage of the received packages of data, being this getter the method used to access all packages of data from each one of the active channels. 
-
-### Parameters
-
-+	**rebootMemory** `bool`: When **true** the stored data inside **BufferedSamples** object is re-initialized.
-
-### Returned Values
-
-A 2D integer array, where each entry of the first dimension contains an array of integers that store all samples collected from the respective communication channel. 
-
-The size of the first dimension is equal to the number of active channels.
-
 ## GetDetectableDevicesUnity
 
 Class method intended to find the list of detectable devices through **Bluetooth** communication.
@@ -353,7 +360,7 @@ A list of strings containing the mac-addresses of all **PLUX** devices detected 
 
 ## GetNbrChannelsUnity
 
-"Getting" method used for determination of the number of used channels during the real-time acquisition.
+Getter method used for determination of the number of used channels during the real-time acquisition.
 ```csharp
 int GetNbrChannelsUnity()
 ```
@@ -372,7 +379,7 @@ An integer identifying the number of active channels in the **PLUX** device conn
 
 ## GetBatteryUnity
 
-"Getting" method dedicated to check the battery level of the device.
+Getter method dedicated to check the battery level of the device.
 ```csharp
 int GetBatteryUnity()
 ```
@@ -391,7 +398,7 @@ The percentage level of battery.
 
 ## GetDeviceTypeUnity
 
-"Getting" method intended to check the type of the PLUX device connected with computer.
+Getter method intended to check the type of the PLUX device connected with computer.
 ```csharp
 string GetDeviceTypeUnity()
 ```
@@ -408,6 +415,50 @@ The possible values are `"biosignalsplux"`, `"BITalino"` or `"MuscleBAN BE Plux"
 ### Returned Values
 
 A string that identifies which **PLUX** device is currently connected to the computer.
+
+## GetProductIdUnity
+
+Getter method dedicated to identify the ID number that identifies the type of device under analysis.
+
+```csharp
+int GetProductIdUnity()
+```
+
+### Description
+
+The following unique identifiers defined which type of **PLUX** device is connected to the computer:
+
++ **biosignalsplux** >>> 513
++ **biosignalsplux Hybrid-8** >>> 517
++ **BITalino (r)evolution** >>> 1538
+
+### Parameters
+
+*Function without input parameters*
+
+### Returned Values
+
+The product ID of the device connected to the computer.
+
+## IsAcquisitionInProgress
+
+Getter method dedicated to identify a real-time data acquisition is currently in progress.
+
+```csharp
+bool IsAcquisitionInProgress()
+```
+
+### Description
+
+Through a boolean flag, this method identifies if a data acquisition is currently running and if the **PLUX** device is streaming data to the computer.
+
+### Parameters
+
+*Function without input parameters*
+
+### Returned Values
+
+A boolean flag stating if an acquisition is in progress (`true`) or not (`false`).
 
 ## SetParameter
 

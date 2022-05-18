@@ -151,7 +151,7 @@ public class PluxDeviceManager
         /// Disconnect reason enumeration.
         public enum PluxDisconnectReason
         {
-            Timeout = 1,         // Connection timeout (15 min) has elapsed.
+            Timeout = 1,         // Connection timeout has elapsed.
             ButtonPressed = 2,   // Device button was pressed.
             BatDischarged = 4,   // Device battery is discharged.
         };
@@ -205,8 +205,7 @@ public class PluxDeviceManager
     // onDataReceivedCallback -> Callback function invoked every time a new package of RAW data samples is transmitted by the API.
     // onEventDetectedCallback -> Callback invoked when an event is raised by the PLUX API.
     // onExceptionRaisedCallback -> Callback invoked when an exception is raised by the PLUX API.
-    public PluxDeviceManager(ScanResults scanResultsCallback, ConnectionDone connectionDoneCallback, AcquisitionStarted acquisitionStartedCallback, OnRawFrame onDataReceivedCallback, OnEventDetected onEventDetectedCallback, 
-        OnExceptionRaised onExceptionRaisedCallback)
+    public PluxDeviceManager(ScanResults scanResultsCallback, ConnectionDone connectionDoneCallback, AcquisitionStarted acquisitionStartedCallback, OnRawFrame onDataReceivedCallback, OnEventDetected onEventDetectedCallback, OnExceptionRaised onExceptionRaisedCallback)
     {
         LazyObject = new Lazy<BufferAcqSamples>(InitBufferedSamplesObject);
         PluxDevsFound = new Lazy<List<String>>(InitiListDevFound);
@@ -468,7 +467,8 @@ public class PluxDeviceManager
     }
 
     // Method used to check if any unhandled exception was raised until the moment.
-    public bool IsExceptionInBuffer(bool raiseException = false)
+    // raiseException -> A Boolean flag stating if an exception should be explicitly raised (true) or silently flagged (false).
+    private bool IsExceptionInBuffer(bool raiseException = false)
     {
         // Lock is an essential step to ensure that variables shared by the same thread will not be accessed at the same time.
         BufferAcqSamples bufferedSamples = LazyObject.Value;
@@ -711,7 +711,7 @@ public class PluxDeviceManager
     // onRawFrameHandler -> Callback function invoked every time a new package of RAW data samples is transmitted by the API.
     // onEventDetectedHandler -> Callback invoked when an event is raised by the PLUX API.
     // onExceptionRaisedHandler -> Callback invoked when an exception is raised by the PLUX API.
-    public bool SetCallbackHandler(OnRawFrame onRawFrameHandler, OnEventDetected onEventDetectedHandler, OnExceptionRaised onExceptionRaisedHandler)
+    private bool SetCallbackHandler(OnRawFrame onRawFrameHandler, OnEventDetected onEventDetectedHandler, OnExceptionRaised onExceptionRaisedHandler)
     {
         callbackPointer = new CallbackManager(onRawFrameHandler, onEventDetectedHandler, onExceptionRaisedHandler);
         return true;

@@ -10,7 +10,6 @@ public class Hybrid8Test : MonoBehaviour
 {
     // Class Variables
     private PluxDeviceManager pluxDevManager;
-    private StreamWriter filerWriterNew;
 
     // GUI Objects.
     public Button ScanButton;
@@ -282,6 +281,8 @@ public class Hybrid8Test : MonoBehaviour
     }
 
     // Callback that receives the data acquired from the PLUX devices that are streaming real-time data.
+    // nSeq -> Number of sequence identifying the number of the current package of data.
+    // data -> Package of data containing the RAW data samples collected from each active channel ([sample_first_active_channel, sample_second_active_channel,...]).
     public void OnDataReceived(int nSeq, int[] data)
     {
         // Show samples with a 1s interval.
@@ -300,6 +301,7 @@ public class Hybrid8Test : MonoBehaviour
     }
 
     // Callback that receives the events raised from the PLUX devices that are streaming real-time data.
+    // pluxEvent -> Event object raised by the PLUX API.
     public void OnEventDetected(PluxDeviceManager.PluxEvent pluxEvent)
     {
         if (pluxEvent is PluxDeviceManager.PluxDisconnectEvent)
