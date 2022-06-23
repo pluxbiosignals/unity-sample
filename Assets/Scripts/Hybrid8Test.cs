@@ -166,7 +166,7 @@ public class Hybrid8Test : MonoBehaviour
             // Starting a real-time acquisition from:
             // >>> muscleBAN [CH1 > EMG]
             pluxSources.Add(new PluxDeviceManager.PluxSource(1, 1, resolution, 0x01));
-            // >>> muscleBAN [CH2-CH4 > ACC | CH5-CH7 > MAG active]
+            // >>> muscleBAN Virtual Port [CH2-CH4 > ACC | CH5-CH7 > MAG active]
             pluxSources.Add(new PluxDeviceManager.PluxSource(11, 1, resolution, 0x3F));
         }
         // biosignalsplux Solo (8 Analog sensors)
@@ -177,7 +177,7 @@ public class Hybrid8Test : MonoBehaviour
             pluxSources.Add(new PluxDeviceManager.PluxSource(1, 1, resolution, 0x01));
             // >>> biosignalsplux Solo [CH2 > CUSTOM]
             pluxSources.Add(new PluxDeviceManager.PluxSource(2, 1, resolution, 0x01));
-            // >>> biosignalsplux Solo [CH3-CH5 > ACC | CH6-CH8 > MAG]
+            // >>> biosignalsplux Solo Virtual Port [CH3-CH5 > ACC | CH6-CH8 > MAG]
             pluxSources.Add(new PluxDeviceManager.PluxSource(11, 1, resolution, 0x3F));
         }
 

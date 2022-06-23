@@ -46,7 +46,7 @@ public class PluxDeviceManager
     [DllImport("plux_unity_interface")]
     private static extern System.IntPtr GetDeviceType();
     [DllImport("plux_unity_interface")]
-    private static extern void SetNewDeviceFoundHandler(OnNewDeviceFound handlerFunction);
+    private static extern void SetNewDeviceFoundHandler(IntPtr handlerFunction);
     [DllImport("plux_unity_interface")]
     private static extern void SetOnRawDataHandler(OnRawFrameReceived handlerFunction);
     [DllImport("plux_unity_interface")]
@@ -221,19 +221,24 @@ public class PluxDeviceManager
 
         // Initialization of the variable storing the callback responsible for receiving the devices found during the scan.
         OnNewDeviceFound onNewDeviceFoundHandler = new OnNewDeviceFound(OnNewDeviceFoundHandler);
-        SetNewDeviceFoundHandler(onNewDeviceFoundHandler);
+        GCHandle onNewDeviceFoundGCHandler = GCHandle.Alloc(onNewDeviceFoundHandler);
+        SetNewDeviceFoundHandler(Marshal.GetFunctionPointerForDelegate(onNewDeviceFoundHandler));
 
         // Initialization of the variable storing the callback responsible for receiving the streamed data.
         OnRawFrameReceived onRawDataHandler = new OnRawFrameReceived(OnRawFrameHandler);
+        GCHandle onRawDataGCHandler = GCHandle.Alloc(onRawDataHandler);
         SetOnRawDataHandler(onRawDataHandler);
 
         // Initialization of the variable storing the callback responsible for receiving the exceptions raised in the PLUX API .dll.
         OnExceptionRaised onExceptionRaisedHandler = new OnExceptionRaised(OnExceptionRaisedHandler);
+        GCHandle onExceptionRaisedGCHandler = GCHandle.Alloc(onExceptionRaisedHandler);
         SetOnExceptionRaisedHandler(onExceptionRaisedHandler);
 
         // Initialization of the variables storing the callbacks responsible for receiving the events raised in the PLUX API .dll.
         OnDisconnectEventRaised onDisconnectEventHandler = new OnDisconnectEventRaised(OnDisconnectEventHandler);
+        GCHandle onDisconnectEventGCHandler = GCHandle.Alloc(onDisconnectEventHandler);
         OnDigInUpdateEventRaised onDigInEventHandler = new OnDigInUpdateEventRaised(OnDigInEventHandler);
+        GCHandle onDigInEventGCHandler = GCHandle.Alloc(onDigInEventHandler);
         SetOnEventDetectedHandlers(onDisconnectEventHandler, onDigInEventHandler);
 
         // Initialise helper object that manages threads creating during the scanning and connection processes.
@@ -241,6 +246,8 @@ public class PluxDeviceManager
 
         // Specification of the callback function (defined on this/the user Unity script) which will receive the acquired data
         // samples as inputs.
+        GCHandle onDataReceivedGCHandler = GCHandle.Alloc(onDataReceivedCallback);
+        GCHandle onEventDetectedGCHandler = GCHandle.Alloc(onEventDetectedCallback);
         SetCallbackHandler(onDataReceivedCallback, onEventDetectedCallback, onExceptionRaisedCallback);
     }
 

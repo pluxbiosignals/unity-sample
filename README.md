@@ -21,6 +21,10 @@ Some questions can be enlightened, such as:
 +	Microsoft .NET Framework 3.5
 +	Microsoft .NET Framework 4.0
 
+## Recommended Unity Version
+
++	Unity 2021.3.5f1
+
 ## Limitations
 
 +	Currently, the **Lite** version of the Sample APP supports the following devices:
