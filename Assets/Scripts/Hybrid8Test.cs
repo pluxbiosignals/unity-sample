@@ -13,6 +13,7 @@ public class Hybrid8Test : MonoBehaviour
 
     // GUI Objects.
     public Button ScanButton;
+
     public Button ConnectButton;
     public Button DisconnectButton;
     public Button StartAcqButton;
@@ -27,6 +28,7 @@ public class Hybrid8Test : MonoBehaviour
     // Class constants (CAN BE EDITED BY IN ACCORDANCE TO THE DESIRED DEVICE CONFIGURATIONS)
     [System.NonSerialized]
     public List<string> domains = new List<string>() { "BTH" };
+
     public int samplingRate = 100;
 
     private int Hybrid8PID = 517;
@@ -34,11 +36,12 @@ public class Hybrid8Test : MonoBehaviour
     private int BitalinoPID = 1538;
     private int MuscleBanPID = 1282;
     private int MuscleBanNewPID = 2049;
+    private int CardioBanPID = 2050;
     private int BiosignalspluxSoloPID = 532;
     private int MaxLedIntensity = 255;
 
     // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
         // Initialise object
         pluxDevManager = new PluxDeviceManager(ScanResults, ConnectionDone, AcquisitionStarted, OnDataReceived, OnEventDetected, OnExceptionRaised);
@@ -48,10 +51,11 @@ public class Hybrid8Test : MonoBehaviour
     }
 
     // Update function, being constantly invoked by Unity.
-    void Update() {}
+    private void Update()
+    { }
 
     // Method invoked when the application was closed.
-    void OnApplicationQuit()
+    private void OnApplicationQuit()
     {
         try
         {
@@ -122,7 +126,7 @@ public class Hybrid8Test : MonoBehaviour
             pluxSources.Add(new PluxDeviceManager.PluxSource(2, 1, resolution, 0x03));
 
             // Define the LED Intensities of both sensors (CH1 and CH2) as: {RED, INFRARED}
-            int redLedIntensity = (int) (int.Parse(RedIntensityDropdown.options[RedIntensityDropdown.value].text) * (MaxLedIntensity / 100f)); // A 8-bit value (0-255)
+            int redLedIntensity = (int)(int.Parse(RedIntensityDropdown.options[RedIntensityDropdown.value].text) * (MaxLedIntensity / 100f)); // A 8-bit value (0-255)
             int infraredLedIntensity = (int)(int.Parse(InfraredIntensityDropdown.options[InfraredIntensityDropdown.value].text) * (MaxLedIntensity / 100f)); // A 8-bit value (0-255)
             int[] ledIntensities = new int[2] { redLedIntensity, infraredLedIntensity };
             pluxDevManager.SetParameter(1, 0x03, ledIntensities);
@@ -144,12 +148,21 @@ public class Hybrid8Test : MonoBehaviour
             // pluxSources.Add(new PluxDeviceManager.PluxSource(imuPort, 1, resolution, 0x01C0));
         }
         // biosignalsplux (2 Analog sensors)
-        else if(pluxDevManager.GetProductIdUnity() == BiosignalspluxPID)
+        else if (pluxDevManager.GetProductIdUnity() == BiosignalspluxPID)
         {
             // Starting a real-time acquisition from:
-            // >>> biosignalsplux [CH1 and CH8 active]
-            pluxSources.Add(new PluxDeviceManager.PluxSource(1, 1, resolution, 0x01));
-            pluxSources.Add(new PluxDeviceManager.PluxSource(8, 1, resolution, 0x01));
+            // >>> biosignalsplux [CH1 and CH2 active]
+            pluxSources.Add(new PluxDeviceManager.PluxSource(1, 1, resolution, 0x01)); // CH1 | EDA
+            pluxSources.Add(new PluxDeviceManager.PluxSource(2, 1, resolution, 0x01)); // CH2 | ECG
+
+            // Add the sources of the digital channel (CH9 | fNIRS/SpO2).
+            // pluxSources.Add(new PluxDeviceManager.PluxSource(9, 1, resolution, 0x03));
+
+            // Define the LED Intensities of the CH9 sensor as: {RED, INFRARED}
+            // int redLedIntensity = (int)(int.Parse(RedIntensityDropdown.options[RedIntensityDropdown.value].text) * (MaxLedIntensity / 100f)); // A 8-bit value (0-255)
+            // int infraredLedIntensity = (int)(int.Parse(InfraredIntensityDropdown.options[InfraredIntensityDropdown.value].text) * (MaxLedIntensity / 100f)); // A 8-bit value (0-255)
+            // int[] ledIntensities = new int[2] { redLedIntensity, infraredLedIntensity };
+            // pluxDevManager.SetParameter(9, 0x03, ledIntensities);
         }
         // muscleBAN (7 Analog sensors)
         else if (pluxDevManager.GetProductIdUnity() == MuscleBanPID)
@@ -169,6 +182,15 @@ public class Hybrid8Test : MonoBehaviour
             // >>> muscleBAN Virtual Port [CH2-CH4 > ACC | CH5-CH7 > MAG active]
             pluxSources.Add(new PluxDeviceManager.PluxSource(11, 1, resolution, 0x3F));
         }
+        // cardioBAN (7 Analog sensors)
+        else if (pluxDevManager.GetProductIdUnity() == CardioBanPID)
+        {
+            // Starting a real-time acquisition from:
+            // >>> cardioBAN [CH1 > ECG]
+            pluxSources.Add(new PluxDeviceManager.PluxSource(1, 1, resolution, 0x01));
+            // >>> cardioBAN Virtual Port [CH2-CH4 > ACC | CH5-CH7 > MAG active]
+            pluxSources.Add(new PluxDeviceManager.PluxSource(11, 1, resolution, 0x3F));
+        }
         // biosignalsplux Solo (8 Analog sensors)
         else if (pluxDevManager.GetProductIdUnity() == BiosignalspluxSoloPID)
         {
@@ -186,7 +208,7 @@ public class Hybrid8Test : MonoBehaviour
         {
             // Starting a real-time acquisition from:
             // >>> BITalino [Channels A2 and A5 active]
-            pluxDevManager.StartAcquisitionUnity(samplingRate, new List<int>{2, 5}, 10);
+            pluxDevManager.StartAcquisitionUnity(samplingRate, new List<int> { 2, 5 }, 10);
         }
         else
         {
@@ -260,7 +282,7 @@ public class Hybrid8Test : MonoBehaviour
             DisconnectButton.interactable = true;
 
             // Enable some biosignalsplux Hybrid-8 specific GUI elements.
-            if (pluxDevManager.GetProductIdUnity() == Hybrid8PID)
+            if (pluxDevManager.GetProductIdUnity() == Hybrid8PID || pluxDevManager.GetProductIdUnity() == BiosignalspluxPID)
             {
                 RedIntensityDropdown.interactable = true;
                 InfraredIntensityDropdown.interactable = true;
@@ -342,13 +364,14 @@ public class Hybrid8Test : MonoBehaviour
             OutputMsgText.text =
                 "The connection between the computer and the PLUX device was interrupted due to the following event: " +
                 (pluxEvent as PluxDeviceManager.PluxDisconnectEvent).reason;
-            
+
             // Securely stop the real-time acquisition.
             pluxDevManager.StopAcquisitionUnity(-1);
 
             // Reboot GUI.
             RebootGUI();
-        } else if (pluxEvent is PluxDeviceManager.PluxDigInUpdateEvent)
+        }
+        else if (pluxEvent is PluxDeviceManager.PluxDigInUpdateEvent)
         {
             PluxDeviceManager.PluxDigInUpdateEvent digInEvent = (pluxEvent as PluxDeviceManager.PluxDigInUpdateEvent);
             Console.WriteLine("Digital Input Update Event Detected on channel " + digInEvent.channel + ". Current state: " + digInEvent.state);
